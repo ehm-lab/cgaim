@@ -200,3 +200,26 @@ aim.naive <- function(x, y, w, gam.pars = list(), control, trace = T)
     output <- list(alpha = alphas, gz = final.gz, z = zs, beta = c(beta0,betas))
     return(output)   
 }
+
+#! Trying to code myself the smoothing a Pya and Wood (2015). Fail
+smooth.conspline <- function(x, y = NULL, nknots = 10, lambda = 1, ord = 4, knots, ...){
+    n <- length(x)
+    if (missing(knots)){ # conpute knots of the spline
+       knots <- rep(0, ord + nknots + 2)
+       knots[(ord + 2):(nknots + 1)] <- seq(min(x), max(x), length = nknots - ord)
+       for (i in 1:(ord + 1)) knots[i] <- knots[ord + 2] - (ord + 2 - i) * (knots[ord + 3] - knots[ord + 2])
+       for (i in (nknots + 2):(nknots + ord + 2)) knots[i] <- knots[nknots + 1] + (i - nknots - 1) * (knots[ord + 3] - knots[ord + 2])
+    }
+    # Prepare spline basis       
+    B <- splineDesign(knots, x, ord = ord)
+    Sigma <- matrix(1, nknots - 1, nknots - 1)
+    Sigma[upper.tri(Sigma)] <- 0
+    X <- B[,2:nknots] %*% Sigma
+    nb <- ncol(X)
+    P <- diff(diag(nknots - 1), difference = 1)
+    P2 <- crossprod(P)
+    M <- list(y = y, w = rep(1, n), X = X, C = matrix(0, 0, 0), S = list(P2), off = 0, sp = lambda, p = rep(0.1, nb), Ain = diag(nb), bin = c(-1e+12, rep(1e-12, nb - 1)))
+    beta.tilde <- pcls(M)
+    beta <- beta.tilde
+    beta[-1] <- log(beta[-1])
+}

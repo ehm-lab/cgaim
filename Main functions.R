@@ -24,7 +24,8 @@ single.term <- function(x, y, w, alpha = alpha.init(ncol(x)), beta1 = 1, smoothe
     if(missing(w)) w <- rep(1/n,n)
     # First iteration
 #    alpha <- alpha.init(type = "ols", p = p, y = y, x = x, normalize = TRUE)
-    g <- do.call(smooth.fun, c(list(y = y/beta1, x = x, alpha = alpha, w = w), smoother.args))
+    z <- x %*% alpha 
+    g <- do.call(smooth.fun, c(list(y = y/beta1, z = z, w = w), smoother.args))
 #    x11(); plot(x%*%alpha, g$gz)
 #    z <- x %*% alpha
 #    sm.fit <- do.call("smooth.spline", list(x = z, y = y/beta1))
@@ -32,7 +33,7 @@ single.term <- function(x, y, w, alpha = alpha.init(ncol(x)), beta1 = 1, smoothe
 #    gznorm <- sqrt(sum(g$gz^2))
 #    g$gz <- g$gz / gznorm
 #    beta1 <- beta1*gznorm
-    l2 <- L2(y, beta1*g$gz, w)
+    l2 <- L2(y, as.vector(beta1*g$gz), w)
     eps <- (var(y) - l2)/var(y)
     # Iterate until convergence
     c1 <- 1
@@ -40,7 +41,7 @@ single.term <- function(x, y, w, alpha = alpha.init(ncol(x)), beta1 = 1, smoothe
 #        dgz <- do.call(deriv.fun, list(x = x, z = z, gz = gz, alpha = alpha)) #! TODO: Modify to allow passing function for derivation<
 #        dgz <- predict(sm.fit, z, deriv = 1)$y 
         # As in Roosen and Hastie (1994)
-        r <- y - g$gz
+        r <- as.vector(y) - g$gz
         xf <- beta1 * x * matrix(g$dgz, nrow = n, ncol = p, byrow = F)
         delta <- coef(lm(r ~ 0 + xf, weights = w))
 #        delta <- apply(beta1*x, 2, function(x){
@@ -53,14 +54,15 @@ single.term <- function(x, y, w, alpha = alpha.init(ncol(x)), beta1 = 1, smoothe
             delta <- delta * cuts
             alpha.new <- alpha + delta
 #            alpha.new <- sign(alpha.new[1])*alpha.new/sqrt(sum(alpha.new^2)) # For identifiability
-            g <- do.call(smooth.fun, c(list(y = y/beta1, x = x, alpha = alpha.new, w = w), smoother.args))
+            z <- x %*% alpha.new
+            g <- do.call(smooth.fun, c(list(y = y/beta1, z = z, w = w), smoother.args))
 #            z <- x %*% alpha.new
 #            sm.fit <- do.call(smoother, list(x = z, y = y/beta1))
 #            gz <- predict(sm.fit, z)$y
 #            gznorm <- sqrt(sum(g$gz^2))
 #            g$gz <- g$gz / gznorm
 #            beta1 <- beta1*gznorm
-            l2 <- L2(y, beta1*g$gz, w)
+            l2 <- L2(as.vector(y), beta1*g$gz, w)
             if (l2 < l2.old || cuts < control$min.step.len || !control$halving){
                break
             }
@@ -74,7 +76,7 @@ single.term <- function(x, y, w, alpha = alpha.init(ncol(x)), beta1 = 1, smoothe
     }
     alpha <- alpha/sqrt(sum(alpha^2)) 
     z <- x %*% alpha
-    g <- do.call(smooth.fun, c(list(y = y/beta1, x = x, alpha = alpha, w = w), smoother.args))
+    g <- do.call(smooth.fun, c(list(y = y/beta1, z = z, w = w), smoother.args))
 #    sm.fit <- do.call(smoother, list(x = z, y = y/beta1))
 #    gz <- predict(sm.fit, z)$y
     gznorm <- sqrt(sum(g$gz^2))
@@ -155,3 +157,12 @@ aim <- function(x, y, w, smoother = "spline", smoother.args = list(NULL), contro
     return(output)
 }
 
+#! Generalized additive index models
+aim <- function(x, y, w, family = gaussian, smoother = "spline", smoother.args = list(NULL), control = NULL, init.type = "runif", trace = T) 
+# x: a list of matrices giving the variables for each index. The matrices need have the same number of rows (individuals) but can have diffeent numbers of columns (variables). If a matrix is provided, a single-index model is fitted. 
+# y: a numeric vector containing the response observations
+# w: weigths
+# smoother: a character vector giving the smoother used for each index. Can be different for each index. Recycled if necessary.
+# smoother.args: a (nested) list containing optional arguments for each smoother. 
+# control: control parameters for the search algorithm
+# trace: if true, keep criteria and parameters values of each iteration

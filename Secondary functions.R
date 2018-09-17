@@ -62,33 +62,23 @@ ppr.der <- function(x, z, gz, alpha){ #! TODO add pooling as in Friedman (1984) 
 
 #! Different smoothers
 #! Retirer alpha?
-spline.smoother <- function(x, y, alpha, w, ...){
-    z <- x %*% alpha
+spline.smoother <- function(z, y, w, ...){
     sm.fit <- smooth.spline(z, y, w = w, ...)
     gz <- predict(sm.fit, z)$y
     dgz <- predict(sm.fit, z, deriv = 1)$y
     return(list(gz = gz, dgz = dgz))
 }
 
-super.smoother <- function(x, y, alpha, w, ...){
-    z <- x %*% alpha
+super.smoother <- function(z, y, w, ...){
     gz <- supsmu(z, y, wt = w, ...)$y[rank(z)]
-    dgz <- ppr.der(x = x, z = z, gz = gz, alpha = alpha)
+    dgz <- ppr.der(x = x, z = z, gz = gz, alpha = get("alpha", envir = parent.frame()))
     return(list(gz = gz, dgz = dgz))
 }
 
-constrained.smoother <- function(x, y, alpha, w, const, ...){
-    z <- x %*% alpha
+scam.smoother <- function(z, y, w, const = "mpi", df = -1, ord = NA, lambda = NULL, ...){
+    fit <- scam(y ~ s(z, bs = const, k = df, m = ord, sp = lambda), data = data.frame(y, z), weights = w, ...)
+    gz <- predict(fit, data.frame(z = z), type = "response")
+    dgz <- derivative.scam(fit)
+    return(list(gz = as.vector(gz), dgz = as.vector(dgz$d)))
 }
 
-smooth.conspline <- function(x, y = NULL, lambda = 1, ...){
-    B <- ns(x, df = 10)
-    nb <- ncol(B)
-    Sigma <- matrix(1, nb, nb)
-    Sigma[upper.tri(Sigma)] <- 0
-    X <- B %*% Sigma
-    penMat <- matrix(0, nb-2, nb)
-    penMat[row(penMat) == (col(penMat) - 1)] <- 1
-    penMat[row(penMat) == (col(penMat) - 2)] <- -1
-    
-}
