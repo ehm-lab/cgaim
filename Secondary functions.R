@@ -94,3 +94,76 @@ scam.smoother <- function(z, y, w, const = "mpi", df = -1, ord = NA, lambda = NU
     return(list(gz = as.vector(gz), dgz = as.vector(dgz$d)))
 }
 
+#' Gauss-Newton update for alphas.
+#'
+#' Computes the update of alphas in the GAIM by in a Gauss-Newton algorithm.
+#'
+#' @param r Numeric vector. The residual of the current Gauss-Newton step.
+#' @param dg Numeric matrix. The partial derivative matrix of the current 
+#'    Gauss-Newton step.
+#' @param monotone Character in c("increasing", "decreasing") indicating the
+#'    constarint of monotonicity to updates. If NULL, no constraint is added.
+gn_update <- function(r, dg, w = rep(1 / length(r), length(r)), monotone = NULL,
+  monotone.type = c("QP", "pya")){
+  p <- ncol(dg)
+  if (!is.null(monotone)){   
+    if (!monotone %in% c("increasing", "decreasing")){
+      stop("monotone must be either NULL, either one of 
+        c('increasing', 'decreasing')")
+    }
+    monotone.type <- match.arg(monotone.type)
+    delta <- switch(monotone.type,
+      QP = update.QP(r, dg, w, monotone == "decreasing"),
+      pya = update.pya(r, dg, w, monotone == "decreasing")
+    )
+  } else {
+    delta <- coef(lm(r ~ 0 + dg, weights = w))
+  }
+  return(as.vector(delta))
+}
+
+update.QP <- function(y, x, w, decreasing = TRUE){
+  p <- ncol(x)
+  W <- diag(w)
+  Dmat <- t(x) %*% W %*% x
+  dvec <- 2 * t(y) %*% W %*% x
+  Sigma <- matrix(0, p, p - 1)
+  diag(Sigma) <- 1
+  Sigma[row(Sigma) - col(Sigma) == 1] <- -1
+  if (!decreasing) Sigma <- -1 * Sigma
+  delta <- solve.QP(Dmat, dvec, Sigma)
+  return(delta$solution)
+}
+
+update.pya <- function(y, x, w, decreasing = TRUE){
+  p <- ncol(x)
+  Sigma <- diag(p)
+  if (decreasing){
+    Sigma[lower.tri(Sigma, diag = TRUE)] <- -1
+    Sigma[,1] <- 1    
+  } else {
+    Sigma[lower.tri(Sigma)] <- 1
+  }
+  x <- x %*% Sigma
+  delta <- coef(lm(y ~ 0 + x, weights = w))
+  delta[-1] <- exp(delta[-1])
+  delta <- Sigma %*% delta
+  return(delta)
+}
+
+
+#' Normalization of a vector of alphas
+#'
+#' Provides different ways to normalize a vector.
+#'
+#' @param alpha Numeric vector to normalize.
+#' @param type Character indicating the type of normalization. List...
+normalize <- function(alpha, type = "L2"){
+  anorm <- switch(type,
+    L2 = norm(alpha, "2"),
+    L1 = norm(alpha, "1"),
+    sum = sum(alpha),
+    stop("type must be one of c('2', 'sum')")
+  )
+  return(alpha / anorm)
+}

@@ -4,10 +4,10 @@
 #!
 #!#############################################################################
 
-source("C:/Users/masselpl/Documents/Recherche/2017-2019 - Post-doc/Programmes/R/2 - Indices PPR/Package functions/Secondary functions.R")
+source("C:/Users/masselpl/Documents/Recherche/2017-2019 - Post-doc/Programmes/R/2 - Indices PPR/gaim/Secondary functions.R")
 
 #! fit single term ppr
-single.term <- function(x, y, w, alpha = alpha.init(ncol(x)), beta1 = 1, smoother = "spline", smoother.args = NULL, control = NULL) 
+single.term <- function(x, y, w, alpha = alpha.init(ncol(x)), beta1 = 1, smoother = "spline", smoother.args = NULL, control = NULL, alpha.control = NULL) 
 # y: vector of response values
 # x: matrix of predictor values
 # w: weights
@@ -17,6 +17,9 @@ single.term <- function(x, y, w, alpha = alpha.init(ncol(x)), beta1 = 1, smoothe
 {
     def.control <- list(tol = 5e-3, max.iter = 20, min.step.len = 0.1, halving = T)
     control <- c(control,def.control[!names(def.control) %in% names(control)])
+    def.alpha.control <- list(monotone = NULL, monotone.type = "QP", 
+      normalize = "L2")
+    alpha.control <- c(alpha.control,def.alpha.control[!names(def.alpha.control) %in% names(alpha.control)])
     smooth.fun <- sprintf("%s.smoother", smoother)
     x <- as.matrix(x)
     p <- ncol(x)
@@ -43,11 +46,8 @@ single.term <- function(x, y, w, alpha = alpha.init(ncol(x)), beta1 = 1, smoothe
         # As in Roosen and Hastie (1994)
         r <- as.vector(y) - g$gz
         xf <- beta1 * x * matrix(g$dgz, nrow = n, ncol = p, byrow = F)
-        delta <- coef(lm(r ~ 0 + xf, weights = w))
-#        delta <- apply(beta1*x, 2, function(x){
-#            xf <- x*g$dgz
-#            coef(lm(r ~ 0 + xf, weights = w))
-#        })
+        delta <- gn_update(r, xf, w, monotone = alpha.control$monotone, 
+          monotone.type = alpha.control$monotone.type)
         cuts <- 1
         l2.old <- l2
         repeat {   #Loop for halving steps in case of bad step  #
@@ -74,7 +74,7 @@ single.term <- function(x, y, w, alpha = alpha.init(ncol(x)), beta1 = 1, smoothe
 #        plot(x%*%alpha, g$gz)
 #        print(alpha)
     }
-    alpha <- alpha/sqrt(sum(alpha^2)) 
+    alpha <- normalize(alpha, alpha.control$normalize) 
     z <- x %*% alpha
     g <- do.call(smooth.fun, c(list(y = y/beta1, z = z, w = w), smoother.args))
 #    sm.fit <- do.call(smoother, list(x = z, y = y/beta1))
@@ -402,7 +402,7 @@ gaim2 <- function(x, y, w, family = gaussian, control = NULL, init.type = "runif
 
 
 #! At each iteration of the Newton-Raphson, make a single step of the Gauss-Newton algorithm
-#! À repenser
+#! ÃƒÆ’Ã¢â€šÂ¬ repenser
 gaim3 <- function(x, y, w, control = NULL, init.type = "runif")
 {
     require(mgcv)

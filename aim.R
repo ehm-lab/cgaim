@@ -160,6 +160,7 @@ aim.GaussNewton <- function(x, y, w, bs = "tp", control = NULL, init.type = "run
         r <- y - yhat
         dmat <- dgz[,pind]
         Vmat <- Xall*dmat #! POTENTIALLY RIDGE REGRESSION OR LASSO? SEE ROOSEN AND HASTIE (1994) AND SEARCH LITTERATURE
+        #! Replace by compute.update
         delta <- coef(lm(r ~ 0 + Vmat))
         cuts <- 1
         l2.old <- l2
