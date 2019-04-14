@@ -1,72 +1,160 @@
-#! A naïve AIM that attempts to integrate the remarks of Wang et al. (2015) that the index coefficients can be retrieved by LS
-#! Steps:
-#!    1. Estimate coefficients alpha through OLS of all X on Y
-#!    2. Estimate ridge functions by GAM on the constructed indices
-aim.naive <- function(x, y, w, gam.pars = list(), control, trace = T)
+#!############################################################################
+#!
+#!           A global AIM
+#!
+#!############################################################################
+
+#' Additive index models
+#'
+#' Fit an additive index model (AIM). Possibility to use different algorithms.
+#'    Still a test function.
+#'
+#' @param x A list of matrices giving the data for each index. If a matrix is
+#'    given, a single-index model is fitted.
+#' @param y A numeric vector containing the output of the model.
+#' @param w A numeric vector containing weights.
+#' @param smooth.control A list containing the controlling parameters for the
+#'    smoothing of the ridge functions g.
+#' @param alpha.control A list containing the controlling parameters for the
+#'    estimation of the index coefficients alpha.
+#' @param algo.control A list containing the controlling parameters for the
+#'    algorithm. Notably includes the type of algorithm to fit the AIM.
+#' @param trace Logical indicating if the algorithm should be traced.
+aim <- function(x, y, w, smooth.control = list(), alpha.control = list(),  
+  algo.control = list(), trace = FALSE)
 {
-    if (!is.list(x)) x <- list(x)
-    xnames <- names(x)
-    n <- length(y)
-    p <- length(x)
-    pvec <- sapply(x, ncol)
-    if (any(sapply(x, nrow) != n)) stop("Matrices in x must have number of rows equal to the length of y")
-    if(missing(w)) w <- rep(1/n,n)    
-    # estimate alphas
-    X <- Reduce(cbind, x)
-    alpha <- alpha.init(type = "ols", p = p, y = y, x = X, normalize = F, first.pos = F)
-    names(alpha) <- NULL
-    alphas <- split(alpha, rep(1:p, pvec))
-    names(alphas) <- xnames
-    nor.alphas <- lapply(alphas, function(x) x/sqrt(sum(x^2)))
-    # compute zs
-    zs <- mapply("%*%", x, nor.alphas)
-    # estimate gs
-    gam.pars$data <- data.frame(y = y, zs)
-    gam.pars$formula <- as.formula(sprintf("y ~ %s", paste(sprintf("s(%s)", names(gam.pars$data)[-1]), collapse = "+")))
-    gz.fit <- do.call(gam, gam.pars)
-    gz <- predict(gz.fit, type = "terms")
-    final.gz <- scale(gz, scale = F)
-    beta0 <- sum(attr(final.gz, "scaled:center"))
-    betas <- apply(final.gz, 2, function(x) sqrt(sum(x^2))) 
-    for (j in 1:p) final.gz[,j] <- final.gz[,j] / betas[j]
-    output <- list(alpha = alphas, gz = final.gz, z = zs, beta = c(beta0,betas))
-    return(output)   
+  y <- as.vector(y)
+  n <- length(y)
+  if (!is.list(x)) x <- list(x) #! data.frame
+  if (any(sapply(x, nrow) != n)) stop("Matrices in x must have number of rows equal to the length of y")
+  p <- length(x)
+  pvec <- sapply(x, ncol)
+  if (is.null(names(x))) names(x) <- sprintf("V%i", 1:p)
+  xnames <- names(x)
+  if(missing(w)) w <- rep(1/n,n) # Weights
+  # Default values for controlling the algorithm
+  defalgo.control <- list(type = "gauss.newton")
+  algo.control <- c(algo.control, 
+    defalgo.control[!names(defalgo.control) %in% names(algo.control)])
+  # Default values for controlling alpha updates
+  defalpha.control <- list(norm.type = "L2", monotone = 0, sign.const = 0, 
+    init.type = "regression", constraint.algo = "QP", 
+    delta = FALSE)
+  alpha.control <- c(alpha.control, 
+    defalpha.control[!names(defalpha.control) %in% names(alpha.control)])
+  alpha.control[c("norm.type", "sign.const", "monotone")] <- 
+    lapply(alpha.control[c("norm.type", "sign.const", "monotone")], 
+    rep_len, length.out = p)
+  defsmoo.control <- list(type = "tp")
+  smooth.control <- c(smooth.control, 
+    defsmoo.control[!names(defsmoo.control) %in% names(smooth.control)])
+  smooth.control$type <- rep_len(smooth.control$type, length.out = p)
+  # Center y
+  beta0 <- mean(y)
+  y <- y - beta0
+  #! Succession alpha -> smoothing in function
+  # Initialize alphas
+  gn_par <- c(alpha.control[names(alpha.control) %in% names(formals(gn_update))], #! Pas nécessaire?
+    list(r = y, x = x, dgz = rep(list(1), p), w = w))
+  alpha <- do.call(gn_update, gn_par)
+  # Initialize ridge functions gz
+  zs <- mapply("%*%", x, alpha)
+  smo_par <- c(smooth.control, list(y = y, x = zs, w = w))
+  gz <- do.call(smoothing, smo_par)
+  # Main algorithm
+  result <- switch(algo.control$type,
+    two.steps = list(alpha = alpha, gz = gz$gz, z = zs),
+    gauss.newton = aim.GaussNewton(x = x, y = y, w = w, alpha = alpha, gz = gz,
+      smooth.control = smooth.control, alpha.control = alpha.control, 
+      algo.control = algo.control, trace = trace),
+    backfitting = aim.backfit(x = x, y = y, w = w, alpha = alpha, gz = gz, 
+      smooth.control = smooth.control, alpha.control = alpha.control, 
+      algo.control = algo.control, trace = trace),
+    optim = aim.optim(x = x, y = y, w = w, alpha = alpha, 
+      smooth.control = smooth.control, alpha.control = alpha.control, 
+      algo.control = algo.control),
+    stop("Unknown algo type")
+  )  
+  names(result$alpha) <- names(x)
+  colnames(result$gz) <- names(x)
+  # Adjust final values
+  final.gz <- scale(result$gz)
+  betas <- attr(final.gz, "scaled:scale")
+  yhat <-  beta0 + final.gz %*% betas
+  result$gz <- final.gz
+  result$coef <- c(beta0, betas)
+  names(result$coef) <- c("intercept", names(x))
+  result$fitted <- yhat
+  return(result)
 }
 
 
-#! AIM through classical backfitting
-#! Loop through all indices X1, ..., Xp, X1, ..., Xp, ...
-#!    Estimate ridge function and coefficients alpha by single-index model.
-aim.backfit <- function(x, y, w, smoother = "spline", smoother.args = list(NULL), control = NULL, init.type = "runif", trace = T) 
-# x: a list of matrices giving the variables for each index. The matrices need have the same number of rows (individuals) but can have diffeent numbers of columns (variables). If a matrix is provided, a single-index model is fitted. 
-# y: a numeric vector containing the response observations
-# w: weigths
-# smoother: a character vector giving the smoother used for each index. Can be different for each index. Recycled if necessary.
-# smoother.args: a (nested) list containing optional arguments for each smoother. 
-# control: control parameters for the search algorithm
-# trace: if true, keep criteria and parameters values of each iteration
+#' 
+aim.optim <- function(x, y, w, alpha = rep(0, sum(pvec)), 
+   smooth.control = list(), alpha.control = list(), algo.control = list()) 
 {
-    if (!is.list(x)) x <- list(x)
-    xnames <- names(x)
+  pvec <- sapply(x, ncol)
+  pind <- rep(1:p, pvec)
+  alphavec <- unlist(alpha)
+  f <- function(alphavec, x, y, w){
+    alpha <- split(alphavec, pind)
+    alpha <- Map(normalize, alpha, alpha.control$norm.type)
+    zs <- mapply("%*%", x, alpha)
+    smo_par <- c(smooth.control, list(y = y, x = zs, w = w))
+    gz <- do.call(smoothing, smo_par)
+    yhat <- gz$intercept + rowSums(gz$gz)
+    l2 <- L2(y, yhat, w)
+    return(l2)
+  }
+  constr <- with(alpha.control, all(monotone != 0) & all(sign.const != 0))
+  if (constr){
+    ui <- const.matrix(pind, alpha.control$monotone, alpha.control$sign.const)
+    ui <- t(ui)
+    ci <- rep(0, nrow(ui))
+    adjust <- ui %*% alphavec - ci <= 0
+    while(any(adjust)){
+      alphavec <- alphavec + 
+        t(ui[adjust,,drop = F]) %*% rep(.001, sum(adjust))
+      adjust <- ui %*% alphavec - ci <= 0
+    }    
+    optim_par <- c(
+      algo.control[names(algo.control) %in% names(formals(constrOptim))],
+      list(theta = alphavec, f = f, grad = NULL, ui = ui, ci = ci, 
+        x = x, y = y, w = w))
+    result <- do.call(constrOptim, optim_par)
+  } else {
+    optim_par <- c(
+      algo.control[names(algo.control) %in% names(formals(constrOptim))],
+      list(par = alphavec, fn = f, x = x, y = y, w = w))
+    result <- do.call(optim, optim_par)
+  }
+  new.alphavec <- result$par
+  newalpha <- split(alphavec, pind)  
+  zs <- mapply("%*%", x, newalpha)
+  smo_par <- c(smooth.control, list(y = y, x = zs, w = w))
+  gz <- do.call(smoothing, smo_par)
+  output <- list(alpha = newalpha, gz = gz$gz, z = zs) 
+}
+
+#' AIM through backfitting of single-index models
+aim.backfit <- function(x, y, w, alpha = rep(0, sum(pvec)), gz, 
+   smooth.control = list(), alpha.control = list(), algo.control = list(), 
+   trace = T) 
+{
     n <- length(y)
     p <- length(x)
     pvec <- sapply(x, ncol)
-    if (any(sapply(x, nrow) != n)) stop("Matrices in x must have number of rows equal to the length of y")
-    smoother <- rep_len(smoother, p)
-    if (length(smoother.args) != p){
-       warning("Smoother.args does not have the same length as x and is thus recycled.")
-       smoother.args <- rep_len(smoother.args, p)
-    }
-    if(missing(w)) w <- rep(1/n,n)
     def.control <- list(bf.tol = 5e-03, bf.maxit = 50)
-    control <- c(control,def.control[!names(def.control) %in% names(control)]) 
-    # Initialize variables
-    beta0 <- mean(y) #! Possibly remove for the fisher scoring
-    betas <- rep(1,p)
-    alphas <- mapply(alpha.init, p = pvec, x = x, MoreArgs = list(y = y, type = init.type), SIMPLIFY = F)
-    gs <- matrix(0, n, p)
+    algo.control <- c(algo.control, 
+      def.control[!names(def.control) %in% names(algo.control)]) 
+    if (missing(gz)){
+      gz <- list(intercept = mean(y), gz = matrix(0, n, p), 
+        dgz = matrix(1, n, p))
+    }
+    gs <- gz$gz
+    if (missing(alpha)) alpha <- sapply(pvec, rep, x = 0)
     # Backfitting
-    rel.delta <- control$bf.tol + 1
+    rel.delta <- algo.control$bf.tol + 1
     cbf <- 0
     if (trace){ # Tracing the algorithm evolution
         trace.list <- list(
@@ -77,18 +165,28 @@ aim.backfit <- function(x, y, w, smoother = "spline", smoother.args = list(NULL)
         )
         names(trace.list$gz) <- xnames
     }
-    while (rel.delta > control$bf.tol && cbf < control$bf.maxit){
-        r <- y - beta0 - (gs %*% betas)
+    while (rel.delta > algo.control$bf.tol && cbf < algo.control$bf.maxit){
+        r <- y - rowSums(gs)
         deltaf <- 0
         f0norm <- sum(apply(gs^2, 2, weighted.mean, w = w))
         for (j in 1:p){ #! /!\ Oscillation of betas and gz
-            rj <- r + betas[j]*gs[,j]
-            jterm <- single.term(x = x[[j]], y = rj, w = w, alpha = alphas[[j]], beta1 = betas[j], smoother = smoother[j], smoother.args = smoother.args[[j]], control = control)
-            betas[j] <- jterm$beta 
-            alphas[[j]] <- jterm$alpha
+            rj <- r + gs[,j]
+            al.co.j <- alpha.control
+            al.co.j[c("norm.type", "monotone", "sign.const")] <- 
+              sapply(al.co.j[c("norm.type", "monotone", "sign.const")], "[", j)
+            sm.co.j <- smooth.control
+            sm.co.j$type <- sm.co.j$type[j]
+            gzj <- within(gz,{
+              gz <- gz[,j, drop = F]
+              dgz <- dgz[,j, drop = F]
+            })
+            jterm <- aim.GaussNewton(x = x[j], y = rj, w = w, 
+              alpha = alpha[j], gz = gzj, 
+              smooth.control = sm.co.j, alpha.control = al.co.j,
+              algo.control = algo.control, trace = trace)
+            alpha[[j]] <- jterm$alpha[[1]]
             deltaf <- deltaf + weighted.mean((jterm$gz - gs[,j])^2, w)  
-            gs[,j] <- jterm$gz - mean(jterm$gz)
-            beta0 <- beta0 + betas[j]*mean(jterm$gz)
+            gs[,j] <- jterm$gz
         }
         rel.delta <- sqrt(deltaf/f0norm) 
         cbf <- cbf + 1
@@ -101,86 +199,81 @@ aim.backfit <- function(x, y, w, smoother = "spline", smoother.args = list(NULL)
            } 
         }
     }
-    if (cbf == control$bf.maxit) warning(sprintf("Convergence not attained after %i iterations", control$bf.maxit))
-    zs <- mapply("%*%", x, alphas)
-    output <- list(alpha = alphas, gz = gs, z = zs, beta = c(beta0, betas))
+    if (cbf == algo.control$bf.maxit) warning(sprintf("Convergence not attained after %i iterations", algo.control$bf.maxit))
+    zs <- mapply("%*%", x, alpha)
+    output <- list(alpha = alpha, gz = gs, z = zs)
     if (trace) output$trace <- trace.list
     return(output)
 }
 
-#! AIM by Gauss-Newton algorithm
-#! Repeat two steps until convergence:
-#!    1) Update coefficient of all indices at once by Gauss-Newton
-#!    2) Apply GAM (or SCAM) on indices to update Ridge Functions.
-aim.GaussNewton <- function(x, y, w, bs = "tp", control = NULL, init.type = "runif")   #! ADD POSSIBLE ARGUMENTS FOR GAM AND SCAM
-#! ADD BETA
+#' AIM by Gauss-Newton algorithm
+#'
+#' Repeat two steps until convergence:
+#'    1) Update coefficient of all indices at once by Gauss-Newton
+#'    2) Apply GAM (or SCAM) on indices to update Ridge Functions.
+aim.GaussNewton <- function(x, y, w, alpha, gz, 
+  smooth.control = list(), alpha.control = list(), algo.control = list(), 
+  trace = FALSE)
 {
-    require(mgcv)
-    require(scam)
-    require(gratia) #! /!\ only on github
-    #! Remove the requirements
-    y <- as.vector(y)
-    if (!is.list(x)) x <- list(x)
-    if (is.null(names(x))) names(x) <- sprintf("V%i", 1:p)
-    xnames <- names(x)
-    Xall <- Reduce(cbind, x)
     n <- length(y)
     p <- length(x)
     pvec <- sapply(x, ncol)
     pind <- rep(1:p, pvec)
-    if (any(sapply(x, nrow) != n)) stop("Matrices in x must have number of rows equal to the length of y")
-    if(missing(w)) w <- rep(1/n,n)
-    bs <- rep_len(bs, p) 
-    def.control <- list(tol = 5e-3, max.iter = 20, min.step.len = 0.1, halving = T)
-    control <- c(control,def.control[!names(def.control) %in% names(control)])
-    # Initalization
-    beta0 <- mean(y)
-    y <- y - beta0
-    alpha <- mapply(alpha.init, p = pvec, x = x, MoreArgs = list(y = y, type = init.type, first.pos = TRUE), SIMPLIFY =FALSE)  #! MAY CHANGE RESULT. STUDY THE IMPACT.
-    z <- mapply("%*%", x, alpha) 
-    form.rhs <- sprintf("s(%s, bs = '%s')", colnames(z), bs) #! ADD POSSIBILITY TO USE SCAM AND ARGUMENTS FOR s()
-    form.gam <- sprintf("y ~ %s", paste(form.rhs, collapse = " + "))
-    #! ADD LINEAR PREDICTORS    
-    if (any(bs %in% c("mpi", "mpd", "cx", "cv", "micx", "micv", "mdcx", "mdcv"))){
-       gfit <- scam(as.formula(form.gam), data = data.frame(y = y, z))
-       dmod <- lapply(1:p, derivative.scam, object = gfit)
-       dgz <- sapply(dmod, "[[", "d")
-    } else {
-       gfit <- gam(as.formula(form.gam), data = data.frame(y = y, z))  
-       dmod <- gratia::fderiv(gfit, newdata = data.frame(z))  #! github package gratia. May want to change this line if the package is not available on CRAN when the paper is published
-       dgz <- sapply(dmod$derivatives, "[[", "deriv")
-    }    
-    gz <- predict(gfit, type = "terms")
-    yhat <- predict(gfit, type = "response")
+    defalgo.control <- list(tol = 5e-3, max.iter = 50, min.step.len = 0.1, 
+      halving = T)
+    algo.control <- c(algo.control,defalgo.control[!names(defalgo.control) %in% 
+      names(algo.control)])
+#    defalpha.control <- list(init.type = "runif", init.first.pos = TRUE)
+#    alpha.control <- c(alpha.control, 
+#      defalpha.control[!names(defalpha.control) %in% names(alpha.control)])
+    if (missing(gz)){
+      gz <- list(intercept = mean(y), gz = matrix(0, n, p), 
+        dgz = matrix(1, n, p))
+    }
+    if (missing(alpha)) alpha <- sapply(pvec, rep, x = 0)
+    # Convergence criterion    
+    yhat <- gz$intercept + rowSums(gz$gz)
     l2 <- L2(y, yhat, w)
     eps <- (var(y) - l2)/var(y)
+     # Tracing the algorithm evolution
+    if (trace){
+      trace.list <- list(
+        L2 = rep(NA, algo.control$max.iter),
+        alpha = lapply(pvec, matrix, data = NA, nrow = algo.control$max.iter),
+        gz = array(NA, dim = c(n, p, algo.control$max.iter))
+      )
+      trace.list$L2[1] <- l2 
+      for (j in 1:p) trace.list$alpha[[j]][1,] <- alpha[[j]] 
+      trace.list$gz[,,1] <- gz$gz
+    }
     # Gauss-Newton search
     c1 <- 1
-    while(eps > control$tol && c1 <= control$max.iter){
-        r <- y - yhat
-        dmat <- dgz[,pind]
-        Vmat <- Xall*dmat #! POTENTIALLY RIDGE REGRESSION OR LASSO? SEE ROOSEN AND HASTIE (1994) AND SEARCH LITTERATURE
-        #! Replace by compute.update
-        delta <- coef(lm(r ~ 0 + Vmat))
+    gn_par <- c(
+      alpha.control[names(alpha.control) %in% names(formals(gn_update))],
+      list(x = x, w = w))
+    smo_par <- c(smooth.control, list(y = y, w = w))
+    while(eps > algo.control$tol && c1 <= algo.control$max.iter){
+        gn_par$r <- y - yhat
+        gn_par$dgz <- gz$dgz
+        gn_par$alpha <- alpha
+        # Update alphas
+        delta <- do.call(gn_update, gn_par)
+        if(!alpha.control$delta) delta <- Map("-", delta, alpha)        
         cuts <- 1
         l2.old <- l2
-        repeat {   #Loop for halving steps in case of bad step  #
-            delta <- delta * cuts
-            alpha.new <- mapply("+", alpha, split(delta, pind), SIMPLIFY = FALSE)
+        repeat {   #Loop for halving steps in case of bad step
+            # Be careful when there constraints. 
+            # Maybe introduce control mechanism  
+            delta <- lapply(delta, "*", cuts)
+            alpha.new <- Map("+", alpha, delta)
             z <- mapply("%*%", x, alpha.new)
-            if (any(bs %in% c("mpi", "mpd", "cx", "cv", "micx", "micv", "mdcx", "mdcv"))){
-               gfit <- scam(as.formula(form.gam), data = data.frame(y = y, z))
-               dmod <- lapply(1:p, derivative.scam, object = gfit)
-               dgz <- sapply(dmod, "[[", "d")
-            } else {
-               gfit <- gam(as.formula(form.gam), data = data.frame(y = y, z))  
-               dmod <- fderiv(gfit, newdata = data.frame(z))  #! USE FUNCTION derivative.scam FOR SCAM
-               dgz <- sapply(dmod$derivatives, "[[", "deriv")
-            }    
-            gz <- predict(gfit, type = "terms")
-            yhat <- predict(gfit, type = "response")
-            l2 <- L2(as.vector(y), yhat, w)            
-            if (l2 < l2.old || cuts < control$min.step.len || !control$halving){
+            smo_par$x <- z
+            gz <- do.call(smoothing, smo_par)
+            yhat <- gz$intercept + rowSums(gz$gz)
+            l2 <- L2(y, yhat, w)
+            eps <- (var(y) - l2)/var(y) 
+            if (l2 < l2.old || cuts < algo.control$min.step.len || 
+              !algo.control$halving){
                break
             }
             cuts <- cuts / 2
@@ -188,16 +281,16 @@ aim.GaussNewton <- function(x, y, w, bs = "tp", control = NULL, init.type = "run
         alpha <- alpha.new
         eps <- (l2.old - l2)/l2.old
         c1 <- c1 + 1
+        if (trace){ # Tracing the algorithm evolution
+          trace.list$L2[c1] <- l2 
+          for (j in 1:p) trace.list$alpha[[j]][c1,] <- alpha[[j]] 
+          trace.list$gz[,,c1] <- gz$gz
+        }
     }
-    alpha <- lapply(alpha, function(x) sign(x[1])*x/sqrt(sum(x^2))) #! FIRS ELEMENT POSITIVE? EACH ITERATION?
     z <- mapply("%*%", x, alpha)
-    if (any(bs %in% c("mpi", "mpd", "cx", "cv", "micx", "micv", "mdcx", "mdcv"))){
-       gfit <- scam(as.formula(form.gam), data = data.frame(y = y, z))
-    } else {
-       gfit <- gam(as.formula(form.gam), data = data.frame(y = y, z))  
-    }    
-    gz <- predict(gfit, type = "terms")
-    beta1 <- apply(gz, 2, function(x) sqrt(sum(x^2)))
-    gz <- gz / matrix(beta1, ncol = p, nrow = n, byrow = T)
-    return(list(alpha = alpha, z = z, gz = gz, beta = c(beta0,beta1), fitted.values = beta0 + predict(gfit, type = "response")))
+    smo_par$x <- z
+    gz <- do.call(smoothing, smo_par)
+    output <- list(alpha = alpha, gz = gz$gz, z = z)
+    if (trace) output$trace <- trace.list
+    return(output)   
 }
