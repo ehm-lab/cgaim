@@ -132,7 +132,8 @@ alpha.init <- function(y, x, w, type = c("constant", "random", "regression"),
 #! POTENTIALLY RIDGE REGRESSION OR LASSO? SEE ROOSEN AND HASTIE (1994) AND SEARCH LITTERATURE
 gn_update <- function(r, x, dgz, alpha = rep(0, sum(pvec)), 
   w = rep(1 / length(y), length(y)), delta = FALSE, monotone = 0, 
-  sign.const = 0, constraint.algo = c("QP", "reparam"), norm.type = "L2")
+  sign.const = 0, constraint.algo = c("QP", "reparam"), norm.type = "L2",
+  qp_pars = list())
 {
   constraint.algo <- match.arg(constraint.algo)
   if(is.matrix(x)) x <- list(x)
@@ -149,9 +150,8 @@ gn_update <- function(r, x, dgz, alpha = rep(0, sum(pvec)),
     if (any(!monotone %in% -1:1 | !sign.const %in% -1:1)){
       stop("monotone and sign.const must be one of c(-1, 0, 1)")
     }
-    constraint.algo <- match.arg(constraint.algo)
     alpha.new <- switch(constraint.algo,
-      QP = update.QP(r, V, w, monotone, sign.const),
+      QP = update.QP(r, V, w, monotone, sign.const, qp_pars),
       reparam = update.reparam(r, V, w, monotone, sign.const)
     )
   } else {
@@ -164,7 +164,7 @@ gn_update <- function(r, x, dgz, alpha = rep(0, sum(pvec)),
 }
 
 #' @param x List of numeric matrices.
-update.QP <- function(y, x, w, monotone, sign.const){
+update.QP <- function(y, x, w, monotone, sign.const, qp_pars = list()){
   p <- length(x)
   pvec <- sapply(x, ncol)
   pind <- rep(1:p, pvec)
@@ -219,10 +219,19 @@ update.QP <- function(y, x, w, monotone, sign.const){
 #  Asign <- Asign[,sign.const[pind] != 0]
 #  Amat <- cbind(Sigma, Asign)
   Amat <- const.matrix(pind, monotone, sign.const)
-  delta <- quadprog::solve.QP(Dmat, dvec, Amat)#, 
-    #bvec = rep(.Machine$double.eps, ncol(Amat))) 
-    # Machine precision issues
-  sol <- delta$solution
+  # quadprog
+#  delta <- quadprog::solve.QP(Dmat, dvec, Amat, 
+#    bvec = rep(.Machine$double.eps, ncol(Amat))) 
+#     # Machine precision issues
+#  sol <- delta$solution
+  # OSQP
+  def_settings <- list(verbose = FALSE)
+  qp_pars <- c(qp_pars, 
+    def_settings[!names(def_settings) %in% names(qp_pars)])
+  low <- max(c(formals(osqpSettings)$eps_abs, qp_pars$eps_abs))
+  delta <- solve_osqp(P = Dmat, q = -dvec, A = t(Amat), 
+    l = rep(low, ncol(Amat)), pars = qp_pars)
+  sol <- delta$x
   return(sol)
 }
 
@@ -234,10 +243,13 @@ const.matrix <- function(pind, monotone, sign.const){
   Sigma <- Sigma[, diff(pind) == 0, drop = FALSE]
   Sigma[, monotone[pind1] == 1] <- -1 * Sigma[, monotone[pind1] == 1]
   Sigma <- Sigma[, monotone[pind1] != 0, drop = FALSE]
-  Asign <- diag(length(pind))
-  diag(Asign)[sign.const[pind] == -1] <- -1
-  Asign <- Asign[,sign.const[pind] != 0, drop = FALSE]
-  Amat <- cbind(Sigma, Asign)
+  csign <- sign.const[pind]
+  pfirst <- which(diff(c(0, pind)) != 0)
+  pfirst <- pfirst[sign.const > -1]
+  csign[pfirst] <- 1
+  Asign <- diag(csign)
+  Asign <- Asign[apply(Asign, 1, sum) != 0,]
+  Amat <- cbind(Sigma, t(Asign))
 }
 
 #! TODO: General reparametrization
@@ -280,7 +292,9 @@ normalize <- function(alpha, type = "L2"){
     sum = sum(alpha),
     1
   )
-  return(alpha / anorm)
+  out <- alpha / anorm
+  attr(out, "norm") <- anorm
+  return(out)
 }
 
 
@@ -297,40 +311,53 @@ normalize <- function(alpha, type = "L2"){
 #' @param x A matrix or data frame giving indices (one per column).
 #' @param y A numeric vector containing the output of the model.
 #' @param w A numeric vector containing weights.
-#' @param type A character vector indicating the type of smoothing for each
+#' @param method A character value giving the method for smoothing.
+#' @param shape A character vector indicating the type of smoothing for each
 #'    index. Recycled if not the same length as \code{ncol(x)}. Can be one of
 #'    the smoothers available in the \code{mgcv} package (see 
 #'    code{\link[mgcv]{smooth.terms}}). Can also be one of the 
 #'    shaped-constrained smoothers in \code{scam} (see 
 #'    code{\link[scam]{shape.constrained.smooth.termss}}).
-#' @param s.pars A list giving additional parameters for function 
-#'    \code{\link[mgcv]{s}} when gam of scam are fit.
-#' @param control A list of parameters to control the smoothing. Must match
-#'    the necessary parameters according to the function used depending
-#'    on \code{type}.
-smoothing <- function(x, y, w, type = "tp", control = list())
+#' @param ... Additional arguments to be passed to the method.
+smoothing <- function(x, y, w, method = "gam", shape = "tp", ...)
 {
+  dots <- list(...)
   x <- as.data.frame(x)
   n <- length(y)
   p <- ncol(x)
-  type <- rep_len(type, p)
-  form.rhs <- sprintf("s(%s, bs = '%s')", colnames(x), type)
-  form <- sprintf("y ~ %s", paste(form.rhs, collapse = " + "))
+  if (method == "gam" && 
+    any(shape %in% c("mpi", "mpd", "cx", "cv", "micx", "micv", "mdcx", "mdcv")))
+    method <- "scam"
+  shape <- rep_len(shape, p)
   #--- SCAM
-  if (any(type %in% c("mpi", "mpd", "cx", "cv", "micx", "micv", "mdcx", "mdcv"))){
+  if (method == "scam"){
+    form.rhs <- sprintf("s(%s, bs = '%s')", colnames(x), shape)
+    form <- sprintf("y ~ %s", paste(form.rhs, collapse = " + "))
     scam.pars <- c(list(formula = as.formula(form), 
-      data = data.frame(y = y, x)), control)
+      data = data.frame(y = y, x), weights = w), dots)
     gfit <- do.call(scam::scam, scam.pars)
     gx <- predict(gfit, type = "terms")
     dmod <- lapply(1:p, derivative.scam, object = gfit)
     dgx <- sapply(dmod, "[[", "d")
-  } else { #--- GAM
+    beta0 <- coef(gfit)[1]
+  } else { if (method == "gam"){
+    form.rhs <- sprintf("s(%s, bs = '%s')", colnames(x), shape)
+    form <- sprintf("y ~ %s", paste(form.rhs, collapse = " + "))
     gam.pars <- c(list(formula = as.formula(form), 
-      data = data.frame(y = y, x)), control)
+      data = data.frame(y = y, x), weights = w), dots)
     gfit <- do.call(mgcv::gam, gam.pars)
     gx <- predict(gfit, type = "terms")
     dmod <- gratia::fderiv(gfit, newdata = x)  #! github package gratia. May want to change this line if the package is not available on CRAN when the paper is published
     dgx <- sapply(dmod$derivatives, "[[", "deriv")
-  }
-  return(list(intercept = coef(gfit)[1], gz = gx, dgz = dgx))  
+    beta0 <- coef(gfit)[1]
+  } else { if(method == "scar"){
+    scar.pars <- c(list(x = data.matrix(x), y = y, shape = shape, weights = w), 
+      dots)
+    gfit <- do.call(scar::scar, scar.pars)
+    gx <- gfit$componentfit
+    dgx <- mapply(function(x, gx) splinefun(x, gx)(x, deriv = 1), 
+      as.data.frame(x), as.data.frame(gx))
+    beta0 <- gfit$constant
+  }}}
+  return(list(intercept = beta0, gz = gx, dgz = dgx))  
 }

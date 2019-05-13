@@ -45,14 +45,13 @@ aim <- function(x, y, w, smooth.control = list(), alpha.control = list(),
   alpha.control[c("norm.type", "sign.const", "monotone")] <- 
     lapply(alpha.control[c("norm.type", "sign.const", "monotone")], 
     rep_len, length.out = p)
-  defsmoo.control <- list(type = "tp")
+  defsmoo.control <- list(shape = "tp")
   smooth.control <- c(smooth.control, 
     defsmoo.control[!names(defsmoo.control) %in% names(smooth.control)])
-  smooth.control$type <- rep_len(smooth.control$type, length.out = p)
+  smooth.control$shape <- rep_len(smooth.control$shape, length.out = p)
   # Center y
   beta0 <- mean(y)
   y <- y - beta0
-  #! Succession alpha -> smoothing in function
   # Initialize alphas
   gn_par <- c(alpha.control[names(alpha.control) %in% names(formals(gn_update))], #! Pas nécessaire?
     list(r = y, x = x, dgz = rep(list(1), p), w = w))
@@ -73,6 +72,9 @@ aim <- function(x, y, w, smooth.control = list(), alpha.control = list(),
     optim = aim.optim(x = x, y = y, w = w, alpha = alpha, 
       smooth.control = smooth.control, alpha.control = alpha.control, 
       algo.control = algo.control),
+    ga = aim.ga(x = x, y = y, w = w, alpha = alpha, 
+      smooth.control = smooth.control, alpha.control = alpha.control, 
+      algo.control = algo.control, trace = trace),
     stop("Unknown algo type")
   )  
   names(result$alpha) <- names(x)
@@ -88,6 +90,64 @@ aim <- function(x, y, w, smooth.control = list(), alpha.control = list(),
   return(result)
 }
 
+#' AIM through genetic algorithm
+aim.ga <- function(x, y, w, alpha = rep(0, sum(pvec)), trace = FALSE, 
+   smooth.control = list(), alpha.control = list(), algo.control = list()) 
+{
+  p <- length(x)
+  pvec <- sapply(x, ncol)
+  pind <- rep(1:p, pvec)
+  alphavec <- unlist(alpha)
+  f <- function(alphavec, x, y, w){
+    alpha <- split(alphavec, pind)
+    alpha <- Map(normalize, alpha, alpha.control$norm.type)
+    zs <- mapply("%*%", x, alpha)
+    smo_par <- c(smooth.control, list(y = y, x = zs, w = w))
+    gz <- do.call(smoothing, smo_par)
+    yhat <- gz$intercept + rowSums(gz$gz)
+    l2 <- L2(y, yhat, w)
+    return(l2)
+  }
+  monotone.cons <- function(alphavec){
+    consts <- const.matrix(pind, alpha.control$monotone, rep(0, p))
+    t(consts) %*% alphavec
+  }
+  objfun <- function(alphavec, x, y, w){
+    pen <- sqrt(.Machine$double.xmax)
+    constvec <- monotone.cons(alphavec)
+    penalty <- apply(-constvec, 1, max, 0) * pen
+    -f(alphavec, x, y, w) - sum(penalty)
+  }
+  ga_par <- algo.control[names(algo.control) %in% names(formals(ga))]
+  if (is.null(alpha.control$upper)){
+    alpha.control$upper <- lapply(pvec, rep, x = 1)
+  }
+  if (is.null(alpha.control$lower)){
+    alpha.control$lower <- lapply(pvec, rep, x = -1)
+  }
+  lower <- unlist(alpha.control$lower)
+  lower[alpha.control$sign.const[pind] == 1] <- 0
+  upper <- unlist(alpha.control$upper)
+  upper[alpha.control$sign.const[pind] == -1] <- 0
+  ga_par <- within(ga_par, {
+    type <- "real-valued" 
+    fitness <- objfun
+    x <- x
+    y <- y
+    w <- w
+    suggestions <- alphavec
+    lower <- lower
+    upper <- upper
+    monitor <- trace
+  })
+  result <- do.call(ga, ga_par)  
+  new.alphavec <- result@solution[1,]
+  newalpha <- split(new.alphavec, pind)  
+  zs <- mapply("%*%", x, newalpha)
+  smo_par <- c(smooth.control, list(y = y, x = zs, w = w))
+  gz <- do.call(smoothing, smo_par)
+  output <- list(alpha = newalpha, gz = gz$gz, z = zs) 
+}
 
 #' 
 aim.optim <- function(x, y, w, alpha = rep(0, sum(pvec)), 
@@ -129,7 +189,7 @@ aim.optim <- function(x, y, w, alpha = rep(0, sum(pvec)),
     result <- do.call(optim, optim_par)
   }
   new.alphavec <- result$par
-  newalpha <- split(alphavec, pind)  
+  newalpha <- split(new.alphavec, pind)  
   zs <- mapply("%*%", x, newalpha)
   smo_par <- c(smooth.control, list(y = y, x = zs, w = w))
   gz <- do.call(smoothing, smo_par)
