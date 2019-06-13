@@ -34,6 +34,8 @@ dlag_len <- function(x, lag, na.action = na.pass)
 
 #! L2 loss function
 L2 <- function(y, yhat, w){ 
+    n <- length(y)
+    if (missing(w)) w <- rep(1 / n, n)
     return(weighted.mean((y-yhat)^2, w))
 }
 
@@ -131,9 +133,9 @@ alpha.init <- function(y, x, w, type = c("constant", "random", "regression"),
 #'    and "pya" indicates the method used in the SCAM (Pya and Wood, 2015).
 #! POTENTIALLY RIDGE REGRESSION OR LASSO? SEE ROOSEN AND HASTIE (1994) AND SEARCH LITTERATURE
 gn_update <- function(r, x, dgz, alpha = rep(0, sum(pvec)), 
-  w = rep(1 / length(y), length(y)), delta = FALSE, monotone = 0, 
+  w = rep(1 / length(y), length(y)), delta = TRUE, monotone = 0, 
   sign.const = 0, constraint.algo = c("QP", "reparam"), norm.type = "L2",
-  qp_pars = list())
+  solver = NULL, qp_pars = list())
 {
   constraint.algo <- match.arg(constraint.algo)
   if(is.matrix(x)) x <- list(x)
@@ -144,27 +146,37 @@ gn_update <- function(r, x, dgz, alpha = rep(0, sum(pvec)),
   # prepare predictors
   V <- Map("*", x, as.data.frame(dgz))
   Vmat <- Reduce("cbind", V)
+  # Prepare constraints
+  Amat <- const.matrix(pind, monotone, sign.const)
   # prepare response
-  if (!delta) r <- r + Vmat %*% alphavec
+  if (!delta){ 
+    r <- r + Vmat %*% alphavec
+    l <- rep(0, nrow(Amat)) 
+  } else {
+    l <- -(Amat %*% alphavec)
+  }
   if (any(monotone != 0 | sign.const != 0)){   
     if (any(!monotone %in% -1:1 | !sign.const %in% -1:1)){
       stop("monotone and sign.const must be one of c(-1, 0, 1)")
     }
-    alpha.new <- switch(constraint.algo,
-      QP = update.QP(r, V, w, monotone, sign.const, qp_pars),
+    alpha.up <- switch(constraint.algo,
+      QP = update.QP(r, V, w, Amat, l, solver, qp_pars),
       reparam = update.reparam(r, V, w, monotone, sign.const)
     )
   } else {
-    alpha.new <- coef(lm(r ~ 0 + Vmat, weights = w))
+    alpha.up <- coef(lm(r ~ 0 + Vmat, weights = w))
   }
-  if (!delta) alpha.new <- alpha.new - alphavec
-  alpha.new <- split(alpha.new, pind)
-  alpha.new <- Map(normalize, alpha.new, norm.type)
-  return(alpha.new)
+  if (!delta) alpha.up <- alphavec - alpha.up
+  alpha.up <- split(alpha.up, pind)
+#  alpha.new <- Map(normalize, alpha.up, norm.type)
+  return(alpha.up)
 }
 
 #' @param x List of numeric matrices.
-update.QP <- function(y, x, w, monotone, sign.const, qp_pars = list()){
+update.QP <- function(y, x, w, Amat, low, solver = c("osqp", "quadprog"), 
+  qp_pars = list())
+{
+  solver <- match.arg(solver)
   p <- length(x)
   pvec <- sapply(x, ncol)
   pind <- rep(1:p, pvec)
@@ -173,83 +185,36 @@ update.QP <- function(y, x, w, monotone, sign.const, qp_pars = list()){
   W <- diag(w)
   Dmat <- t(xall) %*% W %*% xall
   dvec <- 2 * t(y) %*% W %*% xall
-  
-#  # Monotone constraints
-#  Amono <- matrix(0, sum(pvec) - 1, sum(pvec))
-#  diag(Amono) <- 1
-#  Amono[col(Amono) - row(Amono) == 1] <- -1
-#  Amono <- Amono[diff(pind) == 0,]
-#  Amono <- Amono[monotone[pind1] != 0,]
-#  lmono <- umono <- rep(0, sum(pvec[monotone != 0] - 1))
-#  lmono[monotone[pind1] == 1] <- -Inf
-#  umono[monotone[pind1] == -1] <- Inf
-#  # Sign constraints
-#  Asign <- diag(sum(pvec))
-#  Asign <- Asign[sign.const[pind] != 0,]
-#  lsign <- usign <- rep(0, sum(sign.const[pind] != 0))
-#  lsign[sign.const[pind] == -1] <- -Inf
-#  usign[sign.const[pind] == 1] <- Inf
-#  # gathering
-#  Amat <- rbind(Amono, Asign)
-#  lvec <- c(lmono, lsign)
-#  uvec <- c(umono, usign)
-#  # Optimization
-#  result <- osqp::solve_osqp(P = Dmat, q = dvec, A = Amat, l = lvec, u = uvec,
-#    pars = osqpSettings(verbose = FALSE))
-#  sol <- result$x
-  
-#  delta <- osqp::solve_osqp(Dmat, dvec, t(Amat), 
-#    l = rep(1e-7, ncol(Amat)), u = rep(Inf, ncol(Amat)))
-#  sumc <- matrix(0, sum(pvec), p)
-#  for (j in 1:p) sumc[pind == j,j] <- 1
-#  Amat <- cbind(Amat, sumc)
-#  delta <- osqp::solve_osqp(Dmat, dvec, t(Amat), 
-#    l = c(rep(1e-7, ncol(Amat) - p), rep(1, p)), 
-#    u = c(rep(Inf, ncol(Amat) - p), rep(1, p)))
-#  sol <- delta$x
-  
-#  Sigma <- matrix(0, sum(pvec), sum(pvec) - 1)
-#  diag(Sigma) <- 1
-#  Sigma[row(Sigma) - col(Sigma) == 1] <- -1
-#  Sigma <- Sigma[, diff(pind) == 0]
-#  Sigma[, monotone[pind1] == 1] <- -1 * Sigma[, monotone[pind1] == 1]
-#  Sigma <- Sigma[, monotone[pind1] != 0]
-#  Asign <- diag(sum(pvec))
-#  diag(Asign)[sign.const[pind] == -1] <- -1
-#  Asign <- Asign[,sign.const[pind] != 0]
-#  Amat <- cbind(Sigma, Asign)
-  Amat <- const.matrix(pind, monotone, sign.const)
-  # quadprog
-#  delta <- quadprog::solve.QP(Dmat, dvec, Amat, 
-#    bvec = rep(.Machine$double.eps, ncol(Amat))) 
-#     # Machine precision issues
-#  sol <- delta$solution
   # OSQP
   def_settings <- list(verbose = FALSE)
   qp_pars <- c(qp_pars, 
     def_settings[!names(def_settings) %in% names(qp_pars)])
-  low <- max(c(formals(osqpSettings)$eps_abs, qp_pars$eps_abs))
-  delta <- solve_osqp(P = Dmat, q = -dvec, A = t(Amat), 
-    l = rep(low, ncol(Amat)), pars = qp_pars)
-  sol <- delta$x
+  low <- low + max(c(formals(osqpSettings)$eps_abs, qp_pars$eps_abs))
+  sol <- switch(solver,
+    osqp = osqp::solve_osqp(P = Dmat, q = -dvec, A = Amat, 
+      l = low, u = rep(Inf, nrow(Amat)), pars = qp_pars)$x,
+    quadprog = quadprog::solve.QP(Dmat, dvec, t(Amat), bvec = low)$solution
+  )
   return(sol)
 }
 
-const.matrix <- function(pind, monotone, sign.const){
+const.matrix <- function(pind, monotone, sign.const, first.pos = T){
   pind1 <- pind[c(diff(pind) == 0, FALSE)]
-  Sigma <- matrix(0, length(pind), length(pind) - 1)
+  Sigma <- matrix(0, length(pind) - 1, length(pind))
   diag(Sigma) <- 1
-  Sigma[row(Sigma) - col(Sigma) == 1] <- -1
-  Sigma <- Sigma[, diff(pind) == 0, drop = FALSE]
-  Sigma[, monotone[pind1] == 1] <- -1 * Sigma[, monotone[pind1] == 1]
-  Sigma <- Sigma[, monotone[pind1] != 0, drop = FALSE]
+  Sigma[col(Sigma) - row(Sigma)  == 1] <- -1
+  Sigma <- Sigma[diff(pind) == 0,, drop = FALSE]
+  Sigma[monotone[pind1] == 1,] <- -1 * Sigma[monotone[pind1] == 1,]
+  Sigma <- Sigma[monotone[pind1] != 0,, drop = FALSE]
   csign <- sign.const[pind]
-  pfirst <- which(diff(c(0, pind)) != 0)
-  pfirst <- pfirst[sign.const > -1]
-  csign[pfirst] <- 1
+  if (first.pos){
+    pfirst <- which(diff(c(0, pind)) != 0)
+    pfirst <- pfirst[sign.const > -1]
+    csign[pfirst] <- 1
+  }
   Asign <- diag(csign)
-  Asign <- Asign[apply(Asign, 1, sum) != 0,]
-  Amat <- cbind(Sigma, t(Asign))
+  Asign <- Asign[apply(Asign, 1, sum) != 0,, drop = F]
+  return(rbind(Sigma, Asign))
 }
 
 #! TODO: General reparametrization
@@ -292,7 +257,7 @@ normalize <- function(alpha, type = "L2"){
     sum = sum(alpha),
     1
   )
-  out <- alpha / anorm
+  out <- if (anorm != 0) alpha / anorm else alpha
   attr(out, "norm") <- anorm
   return(out)
 }

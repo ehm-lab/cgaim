@@ -20,7 +20,7 @@
 #' @param algo.control A list containing the controlling parameters for the
 #'    algorithm. Notably includes the type of algorithm to fit the AIM.
 #' @param trace Logical indicating if the algorithm should be traced.
-aim <- function(x, y, w, smooth.control = list(), alpha.control = list(),  
+aim <- function(y, x, w, smooth.control = list(), alpha.control = list(),  
   algo.control = list(), trace = FALSE)
 {
   y <- as.vector(y)
@@ -110,7 +110,7 @@ aim.ga <- function(x, y, w, alpha = rep(0, sum(pvec)), trace = FALSE,
   }
   monotone.cons <- function(alphavec){
     consts <- const.matrix(pind, alpha.control$monotone, rep(0, p))
-    t(consts) %*% alphavec
+    consts %*% alphavec
   }
   objfun <- function(alphavec, x, y, w){
     pen <- sqrt(.Machine$double.xmax)
@@ -153,6 +153,7 @@ aim.ga <- function(x, y, w, alpha = rep(0, sum(pvec)), trace = FALSE,
 aim.optim <- function(x, y, w, alpha = rep(0, sum(pvec)), 
    smooth.control = list(), alpha.control = list(), algo.control = list()) 
 {
+  p <- length(x)
   pvec <- sapply(x, ncol)
   pind <- rep(1:p, pvec)
   alphavec <- unlist(alpha)
@@ -218,19 +219,20 @@ aim.backfit <- function(x, y, w, alpha = rep(0, sum(pvec)), gz,
     cbf <- 0
     if (trace){ # Tracing the algorithm evolution
         trace.list <- list(
-            criteria = matrix(NA, nrow = control$bf.maxit, ncol = 3, dimnames = list(NULL, c("delta", "rel.delta", "rss"))), 
-            beta = matrix(NA, nrow = control$bf.maxit, ncol = p, dimnames = list(NULL, xnames)), 
-            alpha = mapply(matrix, ncol = pvec, MoreArgs = list(nrow = control$bf.maxit)), 
-            gz = replicate(p, matrix(nrow = n, ncol = control$bf.maxit), simplify = F)
+            criteria = matrix(NA, nrow = algo.control$bf.maxit, ncol = 3, 
+              dimnames = list(NULL, c("delta", "rel.delta", "rss"))), 
+            alpha = mapply(matrix, ncol = pvec, 
+              MoreArgs = list(nrow = algo.control$bf.maxit)), 
+            gz = replicate(p, matrix(nrow = n, ncol = algo.control$bf.maxit), 
+              simplify = F)
         )
-        names(trace.list$gz) <- xnames
+        names(trace.list$gz) <- names(x)
     }
     while (rel.delta > algo.control$bf.tol && cbf < algo.control$bf.maxit){
-        r <- y - rowSums(gs)
         deltaf <- 0
         f0norm <- sum(apply(gs^2, 2, weighted.mean, w = w))
         for (j in 1:p){ #! /!\ Oscillation of betas and gz
-            rj <- r + gs[,j]
+            rj <- y - rowSums(gs[,-j])
             al.co.j <- alpha.control
             al.co.j[c("norm.type", "monotone", "sign.const")] <- 
               sapply(al.co.j[c("norm.type", "monotone", "sign.const")], "[", j)
@@ -251,12 +253,12 @@ aim.backfit <- function(x, y, w, alpha = rep(0, sum(pvec)), gz,
         rel.delta <- sqrt(deltaf/f0norm) 
         cbf <- cbf + 1
         if (trace){ # Tracing the algorithm evolution
-           trace.list$criteria[cbf,] <- c(deltaf, rel.delta, sum(r^2))
-           trace.list$beta[cbf,] <- betas
-           for (i in 1:p){
-               trace.list$alpha[[i]][cbf,] <- alphas[[i]]
-               trace.list$gz[[i]][,cbf] <- gs[,i]
-           } 
+          trace.list$criteria[cbf,] <- c(deltaf, rel.delta, 
+            sum((y - rowSums(gs[,-j]))^2))
+          for (i in 1:p){
+            trace.list$alpha[[i]][cbf,] <- alpha[[i]]
+            trace.list$gz[[i]][,cbf] <- gs[,i]
+          }              
         }
     }
     if (cbf == algo.control$bf.maxit) warning(sprintf("Convergence not attained after %i iterations", algo.control$bf.maxit))
@@ -278,9 +280,10 @@ aim.GaussNewton <- function(x, y, w, alpha, gz,
     n <- length(y)
     p <- length(x)
     pvec <- sapply(x, ncol)
+    d <- sum(pvec)
     pind <- rep(1:p, pvec)
-    defalgo.control <- list(tol = 5e-3, max.iter = 50, min.step.len = 0.1, 
-      halving = T)
+    defalgo.control <- list(tol = 0.001, max.iter = 50, min.step.len = 0.1, 
+      halving = T, convergence_criterion = "LS")
     algo.control <- c(algo.control,defalgo.control[!names(defalgo.control) %in% 
       names(algo.control)])
 #    defalpha.control <- list(init.type = "runif", init.first.pos = TRUE)
@@ -293,12 +296,13 @@ aim.GaussNewton <- function(x, y, w, alpha, gz,
     if (missing(alpha)) alpha <- sapply(pvec, rep, x = 0)
     # Convergence criterion    
     yhat <- gz$intercept + rowSums(gz$gz)
+    r <- y - yhat
     l2 <- L2(y, yhat, w)
-    eps <- (var(y) - l2)/var(y)
+    eps <- algo.control$tol + 1
      # Tracing the algorithm evolution
     if (trace){
       trace.list <- list(
-        L2 = rep(NA, algo.control$max.iter),
+        convergence = rep(NA, algo.control$max.iter),
         alpha = lapply(pvec, matrix, data = NA, nrow = algo.control$max.iter),
         gz = array(NA, dim = c(n, p, algo.control$max.iter))
       )
@@ -313,17 +317,16 @@ aim.GaussNewton <- function(x, y, w, alpha, gz,
       list(x = x, w = w))
     smo_par <- c(smooth.control, list(y = y, w = w))
     while(eps > algo.control$tol && c1 <= algo.control$max.iter){
-        gn_par$r <- y - yhat
+        gn_par$r <- r
         gn_par$dgz <- gz$dgz
         gn_par$alpha <- alpha
         # Update alphas
+        #! Work with alphas as vectors (less operations)
         delta <- do.call(gn_update, gn_par)
-        if(!alpha.control$delta) delta <- Map("-", delta, alpha)        
         cuts <- 1
         l2.old <- l2
-        repeat {   #Loop for halving steps in case of bad step
-            # Be careful when there constraints. 
-            # Maybe introduce control mechanism  
+        repeat {   
+        #Loop for halving steps in case of bad step (backtracking line search)
             delta <- lapply(delta, "*", cuts)
             alpha.new <- Map("+", alpha, delta)
             z <- mapply("%*%", x, alpha.new)
@@ -331,21 +334,32 @@ aim.GaussNewton <- function(x, y, w, alpha, gz,
             gz <- do.call(smoothing, smo_par)
             yhat <- gz$intercept + rowSums(gz$gz)
             l2 <- L2(y, yhat, w)
-            eps <- (var(y) - l2)/var(y) 
             if (l2 < l2.old || cuts < algo.control$min.step.len || 
               !algo.control$halving){
                break
             }
             cuts <- cuts / 2
         }
-        alpha <- alpha.new
-        eps <- (l2.old - l2)/l2.old
-        c1 <- c1 + 1
+        r <- y - yhat
+        alpha.new <- Map(normalize, alpha.new, alpha.control$norm.type)
+        eps <- switch(algo.control$convergence_criterion,
+          LS = (l2.old - l2)/l2.old,
+          alpha = max(abs(unlist(alpha.new) - unlist(alpha)) / 
+            abs(unlist(alpha))),
+          orthogonal = { #! Doesn't work well
+            Q <- qr.qty(qr(
+              Reduce("cbind", Map("*", x, as.data.frame(gz$dgz)))), r)
+            (sqrt(sum(Q[1:d]^2)) / sqrt(d)) / 
+              (sqrt(sum(Q[-(1:d)]^2)) / sqrt(n - d))
+          }
+        )
+        alpha <- alpha.new       
         if (trace){ # Tracing the algorithm evolution
-          trace.list$L2[c1] <- l2 
+          trace.list$convergence[c1] <- l2 
           for (j in 1:p) trace.list$alpha[[j]][c1,] <- alpha[[j]] 
           trace.list$gz[,,c1] <- gz$gz
         }
+        c1 <- c1 + 1
     }
     z <- mapply("%*%", x, alpha)
     smo_par$x <- z
