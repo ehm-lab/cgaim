@@ -26,9 +26,12 @@ aim <- function(y, x, w, smooth.control = list(), alpha.control = list(),
   y <- as.vector(y)
   n <- length(y)
   if (!is.list(x)) x <- list(x) #! data.frame
+  x <- lapply(x, as.matrix)
   if (any(sapply(x, nrow) != n)) stop("Matrices in x must have number of rows equal to the length of y")
   p <- length(x)
   pvec <- sapply(x, ncol)
+  indices <- pvec > 1
+  pdex <- sum(indices)
   if (is.null(names(x))) names(x) <- sprintf("V%i", 1:p)
   xnames <- names(x)
   if(missing(w)) w <- rep(1/n,n) # Weights
@@ -39,12 +42,12 @@ aim <- function(y, x, w, smooth.control = list(), alpha.control = list(),
   # Default values for controlling alpha updates
   defalpha.control <- list(norm.type = "L2", monotone = 0, sign.const = 0, 
     init.type = "regression", constraint.algo = "QP", 
-    delta = FALSE)
+    delta = TRUE)
   alpha.control <- c(alpha.control, 
     defalpha.control[!names(defalpha.control) %in% names(alpha.control)])
   alpha.control[c("norm.type", "sign.const", "monotone")] <- 
     lapply(alpha.control[c("norm.type", "sign.const", "monotone")], 
-    rep_len, length.out = p)
+    rep_len, length.out = pdex)
   defsmoo.control <- list(shape = "tp")
   smooth.control <- c(smooth.control, 
     defsmoo.control[!names(defsmoo.control) %in% names(smooth.control)])
@@ -54,8 +57,10 @@ aim <- function(y, x, w, smooth.control = list(), alpha.control = list(),
   y <- y - beta0
   # Initialize alphas
   gn_par <- c(alpha.control[names(alpha.control) %in% names(formals(gn_update))], #! Pas nécessaire?
-    list(r = y, x = x, dgz = rep(list(1), p), w = w))
-  alpha <- do.call(gn_update, gn_par)
+    list(r = y, x = x[indices], dgz = rep(list(1), pdex), w = w))
+  gn_par$delta <- FALSE
+  alpha <- rep(list(1), p)
+  alpha[indices] <- do.call(gn_update, gn_par)
   # Initialize ridge functions gz
   zs <- mapply("%*%", x, alpha)
   smo_par <- c(smooth.control, list(y = y, x = zs, w = w))
@@ -140,7 +145,7 @@ aim.ga <- function(x, y, w, alpha = rep(0, sum(pvec)), trace = FALSE,
     upper <- upper
     monitor <- trace
   })
-  result <- do.call(ga, ga_par)  
+  result <- do.call(GA::ga, ga_par)  
   new.alphavec <- result@solution[1,]
   newalpha <- split(new.alphavec, pind)  
   zs <- mapply("%*%", x, newalpha)
@@ -190,7 +195,8 @@ aim.optim <- function(x, y, w, alpha = rep(0, sum(pvec)),
     result <- do.call(optim, optim_par)
   }
   new.alphavec <- result$par
-  newalpha <- split(new.alphavec, pind)  
+  newalpha <- split(new.alphavec, pind)
+  newalpha <- Map(normalize, newalpha, alpha.control$norm.type)  
   zs <- mapply("%*%", x, newalpha)
   smo_par <- c(smooth.control, list(y = y, x = zs, w = w))
   gz <- do.call(smoothing, smo_par)
@@ -232,21 +238,26 @@ aim.backfit <- function(x, y, w, alpha = rep(0, sum(pvec)), gz,
         deltaf <- 0
         f0norm <- sum(apply(gs^2, 2, weighted.mean, w = w))
         for (j in 1:p){ #! /!\ Oscillation of betas and gz
-            rj <- y - rowSums(gs[,-j])
-            al.co.j <- alpha.control
-            al.co.j[c("norm.type", "monotone", "sign.const")] <- 
-              sapply(al.co.j[c("norm.type", "monotone", "sign.const")], "[", j)
+            rj <- y - rowSums(gs[,-j, drop = FALSE])
             sm.co.j <- smooth.control
             sm.co.j$type <- sm.co.j$type[j]
-            gzj <- within(gz,{
-              gz <- gz[,j, drop = F]
-              dgz <- dgz[,j, drop = F]
-            })
-            jterm <- aim.GaussNewton(x = x[j], y = rj, w = w, 
-              alpha = alpha[j], gz = gzj, 
-              smooth.control = sm.co.j, alpha.control = al.co.j,
-              algo.control = algo.control, trace = trace)
-            alpha[[j]] <- jterm$alpha[[1]]
+            if (pvec[j] == 1){
+              smo.co.j <- c(sm.co.j, list(x = x[[j]], y = rj, w = w))
+              jterm <- do.call(smoothing, smo.co.j)
+            } else {
+              al.co.j <- alpha.control
+              al.co.j[c("norm.type", "monotone", "sign.const")] <- 
+                sapply(al.co.j[c("norm.type", "monotone", "sign.const")], "[", j)
+              gzj <- within(gz,{
+                gz <- gz[,j, drop = FALSE]
+                dgz <- dgz[,j, drop = FALSE]
+              })
+              jterm <- aim.GaussNewton(x = x[j], y = rj, w = w, 
+                alpha = alpha[j], gz = gzj, 
+                smooth.control = sm.co.j, alpha.control = al.co.j,
+                algo.control = algo.control, trace = trace)
+              alpha[[j]] <- jterm$alpha[[1]]
+            }
             deltaf <- deltaf + weighted.mean((jterm$gz - gs[,j])^2, w)  
             gs[,j] <- jterm$gz
         }
@@ -282,7 +293,9 @@ aim.GaussNewton <- function(x, y, w, alpha, gz,
     pvec <- sapply(x, ncol)
     d <- sum(pvec)
     pind <- rep(1:p, pvec)
-    defalgo.control <- list(tol = 0.001, max.iter = 50, min.step.len = 0.1, 
+    indices <- pvec > 1
+    pdex <- sum(indices)
+    defalgo.control <- list(tol = 5e-3, max.iter = 50, min.step.len = 0.1, 
       halving = T, convergence_criterion = "LS")
     algo.control <- c(algo.control,defalgo.control[!names(defalgo.control) %in% 
       names(algo.control)])
@@ -293,7 +306,7 @@ aim.GaussNewton <- function(x, y, w, alpha, gz,
       gz <- list(intercept = mean(y), gz = matrix(0, n, p), 
         dgz = matrix(1, n, p))
     }
-    if (missing(alpha)) alpha <- sapply(pvec, rep, x = 0)
+    if (missing(alpha)) alpha <- sapply(pvec, rep, x = 1)
     # Convergence criterion    
     yhat <- gz$intercept + rowSums(gz$gz)
     r <- y - yhat
@@ -314,15 +327,16 @@ aim.GaussNewton <- function(x, y, w, alpha, gz,
     c1 <- 1
     gn_par <- c(
       alpha.control[names(alpha.control) %in% names(formals(gn_update))],
-      list(x = x, w = w))
+      list(x = x[indices], w = w))
     smo_par <- c(smooth.control, list(y = y, w = w))
     while(eps > algo.control$tol && c1 <= algo.control$max.iter){
         gn_par$r <- r
-        gn_par$dgz <- gz$dgz
-        gn_par$alpha <- alpha
+        gn_par$dgz <- gz$dgz[,indices, drop = FALSE]
+        gn_par$alpha <- alpha[indices]
         # Update alphas
         #! Work with alphas as vectors (less operations)
-        delta <- do.call(gn_update, gn_par)
+        delta <- rep(list(0), p)
+        delta[indices] <- do.call(gn_update, gn_par)
         cuts <- 1
         l2.old <- l2
         repeat {   
@@ -364,7 +378,7 @@ aim.GaussNewton <- function(x, y, w, alpha, gz,
     z <- mapply("%*%", x, alpha)
     smo_par$x <- z
     gz <- do.call(smoothing, smo_par)
-    output <- list(alpha = alpha, gz = gz$gz, z = z)
+    output <- list(alpha = alpha, gz = gz$gz, z = z, am.fit = gz$fit)
     if (trace) output$trace <- trace.list
     return(output)   
 }

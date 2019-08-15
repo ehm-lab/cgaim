@@ -70,7 +70,7 @@ super.smoother <- function(z, y, w, ...){
 scam.smoother <- function(z, y, w, const = "mpi", df = -1, ord = NA, lambda = NULL, ...){
     fit <- scam(y ~ s(z, bs = const, k = df, m = ord, sp = lambda), data = data.frame(y, z), weights = w, ...)
     gz <- predict(fit, data.frame(z = z), type = "response")
-    dgz <- derivative.scam(fit)
+    dgz <- scam::derivative.scam(fit)
     return(list(gz = as.vector(gz), dgz = as.vector(dgz$d)))
 }
 
@@ -144,8 +144,11 @@ gn_update <- function(r, x, dgz, alpha = rep(0, sum(pvec)),
   pind <- rep(1:p, pvec)
   alphavec <- unlist(alpha)
   # prepare predictors
-  V <- Map("*", x, as.data.frame(dgz))
-  Vmat <- Reduce("cbind", V)
+  dgz <- as.data.frame(dgz) 
+  zerod <- apply(dgz, 2, function(x) all(x == 0))
+  if (any(zerod)) dgz[,zerod] <- .Machine$double.eps
+  V <- Map("*", x, dgz)
+  Vmat <- data.matrix(Reduce("cbind", V))
   # Prepare constraints
   Amat <- const.matrix(pind, monotone, sign.const)
   # prepare response
@@ -165,6 +168,13 @@ gn_update <- function(r, x, dgz, alpha = rep(0, sum(pvec)),
     )
   } else {
     alpha.up <- coef(lm(r ~ 0 + Vmat, weights = w))
+    #! To address the cases when lm cannot be fit because of important
+    #!    colinearity. Naïve for now, to be thought of
+    if (any(is.na(alpha.up))){
+      ridge.apply <- lm.ridge(r ~ 0 + Vmat, weights = w, 
+        lambda = seq(0,1,0.01))
+      alpha.up <- coef(ridge.apply)[which.min(ridge.apply$GCV),]
+    }
   }
   if (!delta) alpha.up <- alphavec - alpha.up
   alpha.up <- split(alpha.up, pind)
@@ -189,7 +199,7 @@ update.QP <- function(y, x, w, Amat, low, solver = c("osqp", "quadprog"),
   def_settings <- list(verbose = FALSE)
   qp_pars <- c(qp_pars, 
     def_settings[!names(def_settings) %in% names(qp_pars)])
-  low <- low + max(c(formals(osqpSettings)$eps_abs, qp_pars$eps_abs))
+  low <- low + max(c(formals(osqp::osqpSettings)$eps_abs, qp_pars$eps_abs))
   sol <- switch(solver,
     osqp = osqp::solve_osqp(P = Dmat, q = -dvec, A = Amat, 
       l = low, u = rep(Inf, nrow(Amat)), pars = qp_pars)$x,
@@ -283,6 +293,7 @@ normalize <- function(alpha, type = "L2"){
 #'    code{\link[mgcv]{smooth.terms}}). Can also be one of the 
 #'    shaped-constrained smoothers in \code{scam} (see 
 #'    code{\link[scam]{shape.constrained.smooth.termss}}).
+#'    Can also be "l" for linear.
 #' @param ... Additional arguments to be passed to the method.
 smoothing <- function(x, y, w, method = "gam", shape = "tp", ...)
 {
@@ -294,26 +305,44 @@ smoothing <- function(x, y, w, method = "gam", shape = "tp", ...)
     any(shape %in% c("mpi", "mpd", "cx", "cv", "micx", "micv", "mdcx", "mdcv")))
     method <- "scam"
   shape <- rep_len(shape, p)
+  nonlin <- shape != "l"
+  nlin <- sum(shape == "l")
   #--- SCAM
   if (method == "scam"){
-    form.rhs <- sprintf("s(%s, bs = '%s')", colnames(x), shape)
+    form.rhs <- colnames(x)
+    form.rhs[nonlin] <- sprintf("s(%s, bs = '%s')", 
+      form.rhs[nonlin], shape[nonlin])
     form <- sprintf("y ~ %s", paste(form.rhs, collapse = " + "))
     scam.pars <- c(list(formula = as.formula(form), 
       data = data.frame(y = y, x), weights = w), dots)
     gfit <- do.call(scam::scam, scam.pars)
     gx <- predict(gfit, type = "terms")
-    dmod <- lapply(1:p, derivative.scam, object = gfit)
-    dgx <- sapply(dmod, "[[", "d")
+    namx <- colnames(x)
+    namx[nonlin] <- sapply(gfit$smooth, "[[", "label")
+    gx <- gx[,pmatch(namx, colnames(gx)), drop = FALSE]
+    dmod <- lapply(which(nonlin), scam::derivative.scam, object = gfit)
+    dgx <- matrix(NA, n, p)
+    dgx[,nonlin] <- sapply(dmod, "[[", "d")
+    if (nlin > 0) dgx[,!nonlin] <- 
+      matrix(coef(gfit)[1:nlin + 1], nrow = n, ncol = nlin, byrow = TRUE)
     beta0 <- coef(gfit)[1]
   } else { if (method == "gam"){
-    form.rhs <- sprintf("s(%s, bs = '%s')", colnames(x), shape)
+    form.rhs <- colnames(x)
+    form.rhs[nonlin] <- sprintf("s(%s, bs = '%s')", 
+      form.rhs[nonlin], shape[nonlin])
     form <- sprintf("y ~ %s", paste(form.rhs, collapse = " + "))
     gam.pars <- c(list(formula = as.formula(form), 
       data = data.frame(y = y, x), weights = w), dots)
     gfit <- do.call(mgcv::gam, gam.pars)
     gx <- predict(gfit, type = "terms")
+    namx <- colnames(x)
+    namx[nonlin] <- sapply(gfit$smooth, "[[", "label")
+    gx <- gx[,pmatch(namx, colnames(gx))]
     dmod <- gratia::fderiv(gfit, newdata = x)  #! github package gratia. May want to change this line if the package is not available on CRAN when the paper is published
-    dgx <- sapply(dmod$derivatives, "[[", "deriv")
+    dgx <- matrix(NA, n, p)
+    dgx[,nonlin] <- sapply(dmod$derivatives, "[[", "deriv")
+    if (nlin > 0) dgx[,!nonlin] <- 
+      matrix(coef(gfit)[1:nlin + 1], nrow = n, ncol = nlin, byrow = TRUE)
     beta0 <- coef(gfit)[1]
   } else { if(method == "scar"){
     scar.pars <- c(list(x = data.matrix(x), y = y, shape = shape, weights = w), 
@@ -324,5 +353,5 @@ smoothing <- function(x, y, w, method = "gam", shape = "tp", ...)
       as.data.frame(x), as.data.frame(gx))
     beta0 <- gfit$constant
   }}}
-  return(list(intercept = beta0, gz = gx, dgz = dgx))  
+  return(list(intercept = beta0, gz = gx, dgz = dgx, fit = gfit))  
 }
