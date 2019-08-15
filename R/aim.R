@@ -91,7 +91,7 @@ aim <- function(y, x, w, smooth.control = list(), alpha.control = list(),
   result$gz <- final.gz
   result$coef <- c(beta0, betas)
   names(result$coef) <- c("intercept", names(x))
-  result$fitted <- yhat
+  result$fitted <- drop(yhat)
   return(result)
 }
 
