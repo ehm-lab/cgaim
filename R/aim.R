@@ -36,7 +36,8 @@ aim <- function(y, x, w, smooth.control = list(), alpha.control = list(),
   xnames <- names(x)
   if(missing(w)) w <- rep(1/n,n) # Weights
   # Default values for controlling the algorithm
-  defalgo.control <- list(type = "gauss.newton")
+  defalgo.control <- list(tol = 5e-3, max.iter = 50, min.step.len = 0.1, 
+      halving = T, convergence_criterion = "LS")
   algo.control <- c(algo.control, 
     defalgo.control[!names(defalgo.control) %in% names(algo.control)])
   # Default values for controlling alpha updates
@@ -95,290 +96,128 @@ aim <- function(y, x, w, smooth.control = list(), alpha.control = list(),
   return(result)
 }
 
-#' AIM through genetic algorithm
-aim.ga <- function(x, y, w, alpha = rep(0, sum(pvec)), trace = FALSE, 
-   smooth.control = list(), alpha.control = list(), algo.control = list()) 
-{
-  p <- length(x)
-  pvec <- sapply(x, ncol)
-  pind <- rep(1:p, pvec)
-  alphavec <- unlist(alpha)
-  f <- function(alphavec, x, y, w){
-    alpha <- split(alphavec, pind)
-    alpha <- Map(normalize, alpha, alpha.control$norm.type)
-    zs <- mapply("%*%", x, alpha)
-    smo_par <- c(smooth.control, list(y = y, x = zs, w = w))
-    gz <- do.call(smoothing, smo_par)
-    yhat <- gz$intercept + rowSums(gz$gz)
-    l2 <- L2(y, yhat, w)
-    return(l2)
-  }
-  monotone.cons <- function(alphavec){
-    consts <- const.matrix(pind, alpha.control$monotone, rep(0, p))
-    consts %*% alphavec
-  }
-  objfun <- function(alphavec, x, y, w){
-    pen <- sqrt(.Machine$double.xmax)
-    constvec <- monotone.cons(alphavec)
-    penalty <- apply(-constvec, 1, max, 0) * pen
-    -f(alphavec, x, y, w) - sum(penalty)
-  }
-  ga_par <- algo.control[names(algo.control) %in% names(formals(ga))]
-  if (is.null(alpha.control$upper)){
-    alpha.control$upper <- lapply(pvec, rep, x = 1)
-  }
-  if (is.null(alpha.control$lower)){
-    alpha.control$lower <- lapply(pvec, rep, x = -1)
-  }
-  lower <- unlist(alpha.control$lower)
-  lower[alpha.control$sign.const[pind] == 1] <- 0
-  upper <- unlist(alpha.control$upper)
-  upper[alpha.control$sign.const[pind] == -1] <- 0
-  ga_par <- within(ga_par, {
-    type <- "real-valued" 
-    fitness <- objfun
-    x <- x
-    y <- y
-    w <- w
-    suggestions <- alphavec
-    lower <- lower
-    upper <- upper
-    monitor <- trace
-  })
-  result <- do.call(GA::ga, ga_par)  
-  new.alphavec <- result@solution[1,]
-  newalpha <- split(new.alphavec, pind)  
-  zs <- mapply("%*%", x, newalpha)
-  smo_par <- c(smooth.control, list(y = y, x = zs, w = w))
-  gz <- do.call(smoothing, smo_par)
-  output <- list(alpha = newalpha, gz = gz$gz, z = zs) 
-}
 
-#' 
-aim.optim <- function(x, y, w, alpha = rep(0, sum(pvec)), 
-   smooth.control = list(), alpha.control = list(), algo.control = list()) 
-{
-  p <- length(x)
-  pvec <- sapply(x, ncol)
-  pind <- rep(1:p, pvec)
-  alphavec <- unlist(alpha)
-  f <- function(alphavec, x, y, w){
-    alpha <- split(alphavec, pind)
-    alpha <- Map(normalize, alpha, alpha.control$norm.type)
-    zs <- mapply("%*%", x, alpha)
-    smo_par <- c(smooth.control, list(y = y, x = zs, w = w))
-    gz <- do.call(smoothing, smo_par)
-    yhat <- gz$intercept + rowSums(gz$gz)
-    l2 <- L2(y, yhat, w)
-    return(l2)
-  }
-  constr <- with(alpha.control, all(monotone != 0) & all(sign.const != 0))
-  if (constr){
-    ui <- const.matrix(pind, alpha.control$monotone, alpha.control$sign.const)
-    ui <- t(ui)
-    ci <- rep(0, nrow(ui))
-    adjust <- ui %*% alphavec - ci <= 0
-    while(any(adjust)){
-      alphavec <- alphavec + 
-        t(ui[adjust,,drop = F]) %*% rep(.001, sum(adjust))
-      adjust <- ui %*% alphavec - ci <= 0
-    }    
-    optim_par <- c(
-      algo.control[names(algo.control) %in% names(formals(constrOptim))],
-      list(theta = alphavec, f = f, grad = NULL, ui = ui, ci = ci, 
-        x = x, y = y, w = w))
-    result <- do.call(constrOptim, optim_par)
-  } else {
-    optim_par <- c(
-      algo.control[names(algo.control) %in% names(formals(constrOptim))],
-      list(par = alphavec, fn = f, x = x, y = y, w = w))
-    result <- do.call(optim, optim_par)
-  }
-  new.alphavec <- result$par
-  newalpha <- split(new.alphavec, pind)
-  newalpha <- Map(normalize, newalpha, alpha.control$norm.type)  
-  zs <- mapply("%*%", x, newalpha)
-  smo_par <- c(smooth.control, list(y = y, x = zs, w = w))
-  gz <- do.call(smoothing, smo_par)
-  output <- list(alpha = newalpha, gz = gz$gz, z = zs) 
-}
-
-#' AIM through backfitting of single-index models
-aim.backfit <- function(x, y, w, alpha = rep(0, sum(pvec)), gz, 
-   smooth.control = list(), alpha.control = list(), algo.control = list(), 
-   trace = T) 
-{
-    n <- length(y)
-    p <- length(x)
-    pvec <- sapply(x, ncol)
-    def.control <- list(bf.tol = 5e-03, bf.maxit = 50)
-    algo.control <- c(algo.control, 
-      def.control[!names(def.control) %in% names(algo.control)]) 
-    if (missing(gz)){
-      gz <- list(intercept = mean(y), gz = matrix(0, n, p), 
-        dgz = matrix(1, n, p))
-    }
-    gs <- gz$gz
-    if (missing(alpha)) alpha <- sapply(pvec, rep, x = 0)
-    # Backfitting
-    rel.delta <- algo.control$bf.tol + 1
-    cbf <- 0
-    if (trace){ # Tracing the algorithm evolution
-        trace.list <- list(
-            criteria = matrix(NA, nrow = algo.control$bf.maxit, ncol = 3, 
-              dimnames = list(NULL, c("delta", "rel.delta", "rss"))), 
-            alpha = mapply(matrix, ncol = pvec, 
-              MoreArgs = list(nrow = algo.control$bf.maxit)), 
-            gz = replicate(p, matrix(nrow = n, ncol = algo.control$bf.maxit), 
-              simplify = F)
-        )
-        names(trace.list$gz) <- names(x)
-    }
-    while (rel.delta > algo.control$bf.tol && cbf < algo.control$bf.maxit){
-        deltaf <- 0
-        f0norm <- sum(apply(gs^2, 2, weighted.mean, w = w))
-        for (j in 1:p){ #! /!\ Oscillation of betas and gz
-            rj <- y - rowSums(gs[,-j, drop = FALSE])
-            sm.co.j <- smooth.control
-            sm.co.j$type <- sm.co.j$type[j]
-            if (pvec[j] == 1){
-              smo.co.j <- c(sm.co.j, list(x = x[[j]], y = rj, w = w))
-              jterm <- do.call(smoothing, smo.co.j)
-            } else {
-              al.co.j <- alpha.control
-              al.co.j[c("norm.type", "monotone", "sign.const")] <- 
-                sapply(al.co.j[c("norm.type", "monotone", "sign.const")], "[", j)
-              gzj <- within(gz,{
-                gz <- gz[,j, drop = FALSE]
-                dgz <- dgz[,j, drop = FALSE]
-              })
-              jterm <- aim.GaussNewton(x = x[j], y = rj, w = w, 
-                alpha = alpha[j], gz = gzj, 
-                smooth.control = sm.co.j, alpha.control = al.co.j,
-                algo.control = algo.control, trace = trace)
-              alpha[[j]] <- jterm$alpha[[1]]
-            }
-            deltaf <- deltaf + weighted.mean((jterm$gz - gs[,j])^2, w)  
-            gs[,j] <- jterm$gz
-        }
-        rel.delta <- sqrt(deltaf/f0norm) 
-        cbf <- cbf + 1
-        if (trace){ # Tracing the algorithm evolution
-          trace.list$criteria[cbf,] <- c(deltaf, rel.delta, 
-            sum((y - rowSums(gs[,-j]))^2))
-          for (i in 1:p){
-            trace.list$alpha[[i]][cbf,] <- alpha[[i]]
-            trace.list$gz[[i]][,cbf] <- gs[,i]
-          }              
-        }
-    }
-    if (cbf == algo.control$bf.maxit) warning(sprintf("Convergence not attained after %i iterations", algo.control$bf.maxit))
-    zs <- mapply("%*%", x, alpha)
-    output <- list(alpha = alpha, gz = gs, z = zs)
-    if (trace) output$trace <- trace.list
-    return(output)
-}
 
 #' AIM by Gauss-Newton algorithm
+#'
+#' x is a matrix with the index variables
+#' y is the response
+#' w are weigths
+#' index is a vector identifying to which index each variable in x belongs. 
+#'      Additional variables not part of any index are not represented in index.
+#'      Overall we consider that the first d variables are in indices and
+#'      the d + 1 to dtot are additional covariates
 #'
 #' Repeat two steps until convergence:
 #'    1) Update coefficient of all indices at once by Gauss-Newton
 #'    2) Apply GAM (or SCAM) on indices to update Ridge Functions.
-aim.GaussNewton <- function(x, y, w, alpha, gz, 
-  smooth.control = list(), alpha.control = list(), algo.control = list(), 
-  trace = FALSE)
+gaim_gn <- function(x, y, w, index, 
+  smooth.control = list(), alpha.control = list(),
+  keep.trace = FALSE, max.iter = 50, tol = 1e-3, min.step.len = 0.1, 
+  halving = T, convergence_criterion = c("LS", "Alpha", "Offset"))
 {
-    n <- length(y)
-    p <- length(x)
-    pvec <- sapply(x, ncol)
-    d <- sum(pvec)
-    pind <- rep(1:p, pvec)
-    indices <- pvec > 1
-    pdex <- sum(indices)
-    defalgo.control <- list(tol = 5e-3, max.iter = 50, min.step.len = 0.1, 
-      halving = T, convergence_criterion = "LS")
-    algo.control <- c(algo.control,defalgo.control[!names(defalgo.control) %in% 
-      names(algo.control)])
-#    defalpha.control <- list(init.type = "runif", init.first.pos = TRUE)
-#    alpha.control <- c(alpha.control, 
-#      defalpha.control[!names(defalpha.control) %in% names(alpha.control)])
-    if (missing(gz)){
-      gz <- list(intercept = mean(y), gz = matrix(0, n, p), 
-        dgz = matrix(1, n, p))
-    }
-    if (missing(alpha)) alpha <- sapply(pvec, rep, x = 1)
-    # Convergence criterion    
-    yhat <- gz$intercept + rowSums(gz$gz)
-    r <- y - yhat
-    l2 <- L2(y, yhat, w)
-    eps <- algo.control$tol + 1
-     # Tracing the algorithm evolution
-    if (trace){
-      trace.list <- list(
-        convergence = rep(NA, algo.control$max.iter),
-        alpha = lapply(pvec, matrix, data = NA, nrow = algo.control$max.iter),
-        gz = array(NA, dim = c(n, p, algo.control$max.iter))
+  convergence_criterion <- match.arg(convergence_criterion)
+  # Useful objects
+  n <- length(y)
+  p <- max(index)
+  d <- length(index)
+  dtot <- ncol(x) 
+  ind_pos <- split(1:d, index)
+  xind <- x[,1:d]
+  if (dtot > d){
+    xadd <- x[,(d + 1):dtot]
+  } else {
+    xadd <- NULL
+  }     
+  # Alpha initialization    
+  init_pars <- alpha.control[names(alpha.control) %in%
+    intersect(names(formals(alpha_init)), names(formals(alpha_update)))
+  ]
+  init_pars <- within(init_pars,{
+    y = y; x = xind; w = w; index = index
+  })
+  alpha <- do.call(alpha_init, init_pars)
+  # Indice computation
+  zs <- sapply(ind_pos, function(i, x, a) x[,i] %*% a[i], 
+    x = xind, a = alpha)
+  xsmoo <- cbind(zs, xadd)
+  # Initial smoothing 
+  smo_par <- c(smooth.control, list(y = y, x = xsmoo, w = w))
+  gz <- do.call(smoothing, smo_par)   
+  yhat <- gz$intercept + rowSums(gz$gz)
+  r <- y - yhat  
+  # Convergence criterion
+  eps <- tol + 1
+  c1 <- 1      
+  l2 <- L2(y, yhat, w)  
+  # If requested: tracing the algorithm evolution
+  if (keep.trace){
+    trace.list <- list(
+      convergence = rep(NA, max.iter),
+      alpha = matrix(NA, nrow = max.iter, ncol = d),
+      gz = rep(list(NA), max.iter)
+    )
+    trace.list$convergence[1] <- eps 
+    trace.list$alpha[1,] <- alpha 
+    trace.list$gz[[1]] <- gz$gz
+  }
+  # Gauss-Newton search
+  alpha_pars <- c(alpha.control[names(alpha.control) %in%
+      names(formals(alpha_update))],
+    list(x = xind, w = w, index = index))
+  alpha_pars$delta <- TRUE
+  while(eps > tol && c1 < max.iter){
+    # Update alphas
+    alpha_pars$y <- r
+    alpha_pars$dgz <- gz$dgz
+    alpha_pars$alpha <- alpha
+    delta <- do.call(alpha_update, alpha_pars)
+    # Halving in case of bad steps
+    cuts <- 1
+    repeat {   
+      delta <- delta * cuts
+      alpha.new <- alpha + delta
+      alpha.new <- unlist(
+        tapply(alpha.new, index, normalize, type = alpha.control$norm.type))
+      zs <- sapply(ind_pos, function(i, x, a) x[,i] %*% a[i], 
+        x = xind, a = alpha.new)
+      smo_par$x <- cbind(zs, xadd)
+      gz <- do.call(smoothing, smo_par)
+      yhat <- gz$intercept + rowSums(gz$gz)
+      l2.new <- L2(y, yhat, w)
+      r <- y - yhat
+      eps <- switch(convergence_criterion,
+        LS = (l2 - l2.new) / l2,
+        Alpha = max(abs(alpha.new - alpha) / abs(alpha)),
+        Offset = offset_convergence(r, xind, gz$dgz[,index])
       )
-      trace.list$L2[1] <- l2 
-      for (j in 1:p) trace.list$alpha[[j]][1,] <- alpha[[j]] 
-      trace.list$gz[,,1] <- gz$gz
+      if (eps > 0 || cuts < min.step.len || 
+        !halving){
+         break
+      }
+      cuts <- cuts / 2
     }
-    # Gauss-Newton search
-    c1 <- 1
-    gn_par <- c(
-      alpha.control[names(alpha.control) %in% names(formals(gn_update))],
-      list(x = x[indices], w = w))
-    smo_par <- c(smooth.control, list(y = y, w = w))
-    while(eps > algo.control$tol && c1 <= algo.control$max.iter){
-        gn_par$r <- r
-        gn_par$dgz <- gz$dgz[,indices, drop = FALSE]
-        gn_par$alpha <- alpha[indices]
-        # Update alphas
-        #! Work with alphas as vectors (less operations)
-        delta <- rep(list(0), p)
-        delta[indices] <- do.call(gn_update, gn_par)
-        cuts <- 1
-        l2.old <- l2
-        repeat {   
-        #Loop for halving steps in case of bad step (backtracking line search)
-            delta <- lapply(delta, "*", cuts)
-            alpha.new <- Map("+", alpha, delta)
-            z <- mapply("%*%", x, alpha.new)
-            smo_par$x <- z
-            gz <- do.call(smoothing, smo_par)
-            yhat <- gz$intercept + rowSums(gz$gz)
-            l2 <- L2(y, yhat, w)
-            if (l2 < l2.old || cuts < algo.control$min.step.len || 
-              !algo.control$halving){
-               break
-            }
-            cuts <- cuts / 2
-        }
-        r <- y - yhat
-        alpha.new <- Map(normalize, alpha.new, alpha.control$norm.type)
-        eps <- switch(algo.control$convergence_criterion,
-          LS = (l2.old - l2)/l2.old,
-          alpha = max(abs(unlist(alpha.new) - unlist(alpha)) / 
-            abs(unlist(alpha))),
-          orthogonal = { #! Doesn't work well
-            Q <- qr.qty(qr(
-              Reduce("cbind", Map("*", x, as.data.frame(gz$dgz)))), r)
-            (sqrt(sum(Q[1:d]^2)) / sqrt(d)) / 
-              (sqrt(sum(Q[-(1:d)]^2)) / sqrt(n - d))
-          }
-        )
-        alpha <- alpha.new       
-        if (trace){ # Tracing the algorithm evolution
-          trace.list$convergence[c1] <- l2 
-          for (j in 1:p) trace.list$alpha[[j]][c1,] <- alpha[[j]] 
-          trace.list$gz[,,c1] <- gz$gz
-        }
-        c1 <- c1 + 1
+    alpha <- alpha.new
+    l2 <- l2.new
+    c1 <- c1 + 1       
+    if (keep.trace){ # Tracing the algorithm evolution
+      trace.list$convergence[c1] <- eps 
+      trace.list$alpha[c1,] <- alpha 
+      trace.list$gz[[c1]] <- gz$gz
     }
-    z <- mapply("%*%", x, alpha)
-    smo_par$x <- z
-    gz <- do.call(smoothing, smo_par)
-    output <- list(alpha = alpha, gz = gz$gz, z = z, am.fit = gz$fit)
-    if (trace) output$trace <- trace.list
-    return(output)   
+  }
+  if (keep.trace){
+    trace.list$convergence <- trace.list$convergence[1:c1]
+    trace.list$alpha <- trace.list$alpha[1:c1,]
+    trace.list$gz <- trace.list$gz[1:c1]
+    trace.list$niterations <- c1
+  }
+  final.gz <- scale(gz$gz)
+  final.gz[,apply(gz$gz, 2, sd) == 0] <- gz$gz[,apply(gz$gz, 2, sd) == 0]
+  betas <- attr(final.gz, "scaled:scale")
+  output <- list(alpha = alpha, gz = final.gz, z = zs, 
+    beta = c(gz$intercept, betas), am.fit = gz$fit,
+    x = x, y = y, index = index, dgz = gz$dgz, fitted = yhat)
+  if (keep.trace) output$trace <- trace.list
+  return(output)   
 }
