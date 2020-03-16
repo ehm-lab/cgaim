@@ -1,87 +1,96 @@
-#' Estimate ridge functions g
-#'
-#' Performs scatterplot smoothing to obtain ridge functions g.
-#'
-#' @param x A matrix or data frame giving indices (one per column).
-#' @param y A numeric vector containing the output of the model.
-#' @param w A numeric vector containing weights.
-#' @param method A character value giving the method for smoothing.
-#'    'mgcv' calls either 'gam' or 'scam' depending on whether there are
-#'    shape-constrained terms. 'scar' call 'scar'.
-#' @param shape A character vector indicating the type of smoothing for each
-#'    index. Recycled if not the same length as \code{ncol(x)}. Can be one of
-#'    the smoothers available in the \code{mgcv} package (see 
-#'    code{\link[mgcv]{smooth.terms}}). Can also be one of the 
-#'    shaped-constrained smoothers in \code{scam} (see 
-#'    code{\link[scam]{shape.constrained.smooth.termss}}).
-#'    Can also be "l" for linear.
-#' @param ... Additional arguments to be passed to the method.
-#! Parameter organization in the main function (especially for shapes)
-smoothing <- function(x, y, w, method = c("mgcv", "scar"), 
-  shape = "tp", ...)
-{
-  dots <- list(...)
-  method <- match.arg(method)
-  p <- ncol(x)
-  x <- as.data.frame(x)
-  names(x) <- sprintf("V%i", 1:p)
-  n <- length(y)
-  shape <- rep_len(shape, p)
-  smooth_pars <- c(dots, list(x = x, y = y, w = w, shape = shape))
-  out <- do.call(sprintf("smooth_%s", method), smooth_pars)
-  return(out)  
+
+scam.setup <- function(mt, data, smooth.control){
+  # Prepare the covariates and formula
+  ptot <- length(attr(mt, "term.labels"))
+  gind <- attr(mt, "specials")$g
+  smooth_terms <- c(all.vars(mt)[1], vector("character", ptot))
+  index_interp <- get("index_interp", envir = parent.frame())
+  index_forms <- sapply(index_interp, attr, "opt_formula")
+  smooth_terms[gind] <- sprintf("s(%s)", 
+    mapply(paste, get("index_labels", envir = parent.frame()), 
+      index_forms, MoreArgs = list(sep = ", ")))
+  smooth_terms[-c(1, gind)] <- attr(mt[-(gind - 1)], "term.labels")
+  gam_formula <- stats::reformulate(smooth_terms[-1],
+     response = smooth_terms[1])
+  smooth.control$formula <- gam_formula
+  covariate_names <- setdiff(all.vars(mt)[-1], 
+    unlist(lapply(index_interp, attr, "term")))
+  smooth.control$Xcov <- data[,covariate_names]
+  # Special default parameters (tol)
+  return(smooth.control)
 }
 
-smooth_mgcv <- function(x, y, w, shape, ...)
-{
-  dots <- list(...)
-  lin <- shape == "l"
-  nlin <- sum(lin)
-  form.rhs <- colnames(x)
-  form.rhs[!lin] <- sprintf("s(%s, bs = '%s')", 
-    form.rhs[!lin], shape[!lin])
-  form <- sprintf("y ~ %s", paste(form.rhs, collapse = " + "))  
-  # Determine model to fit
-  mod <- ifelse(any(shape %in% 
-    c("mpi", "mpd", "cx", "cv", "micx", "micv", "mdcx", "mdcv")),
-    scam::scam, mgcv::gam
-  )  
-  mgcv_pars <- c(list(formula = as.formula(form), 
-    data = data.frame(y = y, x), weights = w), 
-    dots[names(dots) %in% names(formals(mod))]
-  )  
-  gfit <- do.call(mod, mgcv_pars)
+smooth_scam <- function(x, y, formula, Xcov, ...)
+{ 
+  # Construct data for scam fitting
+  scam_data <- data.frame(as.data.frame(x), Xcov)
+  p <- ncol(scam_data)
+  n <- nrow(scam_data)
+  scam_data[attr(y, "varname")] <- y
+  gfit <- scam::scam(formula, data = scam_data, ...)
   # Extract estimated terms
-  gx <- predict(gfit, type = "terms")
+  gxp <- stats::predict(gfit, type = "terms", se.fit = T)
+  gx <- gxp$fit
+  segx <- gxp$se.fit
+  colnames(gx) <- colnames(segx) <- gsub("s\\(|\\)", "", colnames(gx))
+  gx <- gx[,match(colnames(scam_data)[1:p], colnames(gx))]
+  segx <- segx[,match(colnames(scam_data)[1:p], colnames(segx))]
   # Estimate first derivative (different functions for scam or gam)
-  if (any(shape %in% 
-    c("mpi", "mpd", "cx", "cv", "micx", "micv", "mdcx", "mdcv")))
-  {
-    dmod <- lapply(1:sum(!lin), scam::derivative.scam, object = gfit)    
-    dsm <- sapply(dmod, "[[", "d")    
-  } else {
-    dmod <- gratia::fderiv(gfit, newdata = x)
-    dsm <- sapply(dmod$derivatives, "[[", "deriv")    
-  }  
-  ny <- length(y)
-  dgx <- matrix(NA, ny, ncol(x))
-  if (sum(!lin) > 0) dgx[,!lin] <- dsm
-  suppressWarnings(dgx[,lin] <- matrix(coef(gfit)[1:nlin + 1], 
-      nrow = ny, ncol = nlin, byrow = TRUE))
-  beta0 <- coef(gfit)[1]
-  return(list(intercept = beta0, gz = gx, dgz = dgx, fit = gfit))
+  smterms <- attr(stats::terms(formula, specials = "s"),
+    "specials")$s - 1
+  dgx <- matrix(0, n, p)
+  for (j in 1:p){
+    jind <- which(all.vars(formula)[-1] == names(scam_data)[j])
+    if (jind %in% smterms){
+      dgx[,j] <- scam::derivative.scam(gfit, jind)$d
+    } else {
+      if (is.numeric(scam_data[j])){
+        dgx[,j] <- stats::coef(gfit)[names(scam_data)[j]]
+      }
+    }
+  }
+  beta0 <- stats::coef(gfit)[1]
+  return(list(intercept = beta0, gz = gx, dgz = dgx, se = segx))
 }
 
-smooth_scar <- function(x, y, w, shape, ...)
+scar.setup <- function(mt, data, smooth.control){
+  smooth.control <- smooth.control[names(smooth.control) %in% 
+    methods::formalArgs(scar::scar)]
+  gind <- attr(mt, "specials")$g
+  ptot <- length(attr(mt, "term.labels"))
+  covind <- (1:ptot)[-(gind - 1)]
+  if (length(covind) > 0){
+    mtcov <- mt[-(gind - 1)]
+    mfcov <- stats::model.frame(
+      stats::reformulate(all.vars(mtcov)[-1], intercept = F), 
+      data = data)
+    if (!all(sapply(mfcov,is.numeric))){
+      stop("All variables used in 'scar' must be numeric")
+    }
+    smooth.control$Xcov <- do.call(get("na.action", envir = parent.frame()), 
+      list(object = stats::model.matrix(mfcov, data = data)))
+  }
+  bss <- sapply(1:ptot, function(i){
+    as.list(mt[i][[3]])$bs
+  })
+  notbs <- which(sapply(bss, is.null))
+  sind <- attr(mt, "specials")$s
+  if (length(intersect(notbs, c(gind - 1, sind - 1))) > 0){
+    stop("All nonlinear terms must be shape-constrained when using 'scar'")
+  } 
+  bss[notbs] <- "l"
+  smooth.control$shape <- c(unlist(bss[gind - 1]), unlist(bss[covind]))
+  return(smooth.control)
+}
+
+smooth_scar <- function(x, y, shape, Xcov = NULL, ...)
 {
-  dots <- list(...)
-  scar.pars <- c(list(x = data.matrix(x), y = y, shape = shape, weights = w), 
-    dots[names(dots) %in% names(formals(scar::scar))])
-  gfit <- do.call(scar::scar, scar.pars)
+  scar_data <- cbind(x, Xcov)
+  gfit <- scar::scar(x = scar_data, y = y, shape = shape, ...)
   gx <- gfit$componentfit
-  dgx <- mapply(function(x, gx) splinefun(x, gx)(x, deriv = 1), 
-    as.data.frame(x), as.data.frame(gx))
+  dgx <- mapply(function(x, gx) stats::splinefun(x, gx)(x, deriv = 1), 
+    as.data.frame(scar_data), as.data.frame(gx))
   beta0 <- gfit$constant
-  return(list(intercept = beta0, gz = gx, dgz = dgx, fit = gfit))
+  return(list(intercept = beta0, gz = gx, dgz = dgx))
 }
 

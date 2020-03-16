@@ -1,16 +1,29 @@
-Package: gaim
-Title: Groupwise additive index models
-Version: 0.0.0.9000
+Package: cgaim
+Title: Constrained groupwise additive index models
+Version: 0.1.0
 Authors@R: 
     person(given = "Pierre",
            family = "Masselot",
            role = c("aut", "cre"),
            email = "pierre.masselot@ete.inrs.ca",
            comment = c(ORCID = "0000-0002-7326-1290"))
-Description: The package gaim fits groupwise additive index models with
+Description: The package cgaim fits groupwise additive index models with
   possibly constraints on the index weights and ridge functions.
 License: GPL-3
 Encoding: UTF-8
 LazyData: true
 Suggests: 
     testthat (>= 2.1.0)
+RoxygenNote: 6.1.1
+Imports: 
+    graphics,
+    stats,
+    scam,
+    scar,
+    quadprog,
+    osqp,
+    limSolve,
+    Matrix,
+    grDevices,
+    methods,
+    MASS

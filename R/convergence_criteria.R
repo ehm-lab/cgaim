@@ -11,5 +11,5 @@ offset_convergence <- function(r, xind, dgz)
 L2 <- function(y, yhat, w){ 
     n <- length(y)
     if (missing(w)) w <- rep(1 / n, n)
-    return(weighted.mean((y-yhat)^2, w))
+    return(stats::weighted.mean((y-yhat)^2, w))
 }

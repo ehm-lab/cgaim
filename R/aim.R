@@ -4,146 +4,244 @@
 #!
 #!############################################################################
 
-#' Additive index models
+#' Constrained groupwise additive index models
 #'
-#' Fit an additive index model (AIM). Possibility to use different algorithms.
-#'    Still a test function.
+#' Fits a constrained groupwise additive index model (CGAIM) through
+#'  alternative sequential quadratic programming steps.
 #'
-#' @param x A list of matrices giving the data for each index. If a matrix is
-#'    given, a single-index model is fitted.
-#' @param y A numeric vector containing the output of the model.
-#' @param w A numeric vector containing weights.
-#' @param smooth.control A list containing the controlling parameters for the
-#'    smoothing of the ridge functions g.
+#' @param formula A CGAIM formula with index terms \code{\link{g}}, 
+#'    smooth terms \code{\link[mgcv]{s}} and linear terms. Also see
+#'    \code{\link[scam]{shape.constrained.smooth.terms}} for inclusion of
+#'    shape constraints.
+#' @param data A data.frame containing the variables of the model.    
+#' @param weights A vector of weights for observations. By default, a unit 
+#'    weight is attributed to each observation.
+#' @param na.action A function indicating what treatment applying to NAs. If
+#'    missing the default is set by the \code{na.action} setting of \code{options}. See
+#'    \code{\link[stats]{na.fail}}.
+#' @param smooth.control A list containing controlling parameters for the
+#'    smoothing steps of the algorithm. Basically, any parameters passed
+#'    either to \code{\link[scam]{scam}} or to \code{\link[scar]{scar}}
+#'    depending on the value of \code{smooth_method}. See details.
 #' @param alpha.control A list containing the controlling parameters for the
-#'    estimation of the index coefficients alpha.
-#' @param algo.control A list containing the controlling parameters for the
-#'    algorithm. Notably includes the type of algorithm to fit the AIM.
-#' @param trace Logical indicating if the algorithm should be traced.
-aim <- function(y, x, w, smooth.control = list(), alpha.control = list(),  
-  algo.control = list(), trace = FALSE)
+#'    alpha optimization steps of the algorithm. See \code{\link{alpha.setup}}.
+#' @param algo.control A list containing controlling parameters for the
+#'    whole algorithm. See \code{\link{algo.setup}}.
+#' @param smooth_method The shape constrained smoothing algorithm to
+#'    consider. See details.
+#' @param keep.trace Logical. If TRUE, the result contains a 'trace' element
+#'    giving the intermediate values of alpha coefficients and ridge functions
+#'    at each step of the algorithm. Useful for behaviour tracking.
+#'
+#' The CGAIM is expressed 
+#'  \deqn{y_{i} = \beta_{0} + \sum_{j} \beta_{j} g_{j}(\alpha_{j}^{T} x_{ij})
+#'    + \sum_{k} \gamma_{k} f_{k}(x_{ik}) + e_{i}}
+#'  The formula interface considers \code{\link{g}} to identify index terms,
+#'   \code{\link[mgcv]{s}} for smooth functions and can also integrate 
+#'    linear terms in the classical fashion. All smooth terms can be
+#'    shape constrained, see \code{\link[scam]{shape.constrained.smooth.terms}}.
+#'
+#' The CGAIM allows for linear constraints on the alpha coefficients. 
+#'  Common constraints can be given for each index through the 
+#'  \code{\link{g}} terms in the formula. A more general constraint matriox 
+#'  can be given through \code{alpha.control$Cmat}. See 
+#'  \code{\link{alpha.setup}}.
+#'
+#' The CGAIM is fitted through an iterative algorithm that alternates between
+#'  estimating the ridge functions \eqn{g_{j}} (and other non-index terms) and 
+#'  updating the coefficients \eqn{\alpha_{j}}. The smoothing of ridge functions
+#'  supports currently two methods \code{\link[scam]{scam}} and 
+#'  \code{\link[scar]{scar}}. Although default parameter are set internally,
+#'  parameters controlling the smoothing methods can be passed through
+#'  the parameter \code{smooth.control}.
+#'
+#' Updating the coefficient is made through quadratic programming. Currently,
+#'  it is carried out by either the function 
+#'  \code{\link[osqp:solve_osqp]{solve_osqp}} or 
+#'  \code{\link[quadprog:solve.QP]{solve.QP}}. Controlling the updates is
+#'  made through the parameter \code{alpha.control}. See \code{\link{alpha.setup}}
+#'  for the detail.
+#'
+#' @return A \code{cgaim} object, i.e. a list with components:
+#'  \item{alpha}{A named list of index coefficients.}
+#'  \item{gfit}{A matrix containing the ridge and smooth functions 
+#'    evaluated at the observations.}
+#'  \item{indexfit}{A matrix containing the indices evaluated at the 
+#'    observations.}
+#'  \item{beta}{A vector containing the intercept and the scale coefficient
+#'    of each ridge and smooth function. Includes the \eqn{\gamma_{k}} of
+#'    the CGAIM model above}.
+#'  \item{index}{A vector identifying to which index the columns of the
+#'    element \code{x} belong.}
+#'  \item{fitted}{A vector of fitted y values.}
+#'  \item{residuals}{A vector of residuals.}
+#'  \item{avcov}{The covariance matrix of alpha coefficients. Naively 
+#'    computed from the last step of the algorithm.}
+#'  \item{bvcov}{The covariance matrix of beta coefficients. 
+#'    Computed from the design matrix created by ridge and smooth functions.}
+#'  \item{gse}{Standard errors of ridge and smooth functions. Only
+#'    available when \code{smooth_method = 'scam'}.}
+#'  \item{rss}{The residual sum of squares of the fit.}
+#'  \item{flag}{A flag indicating how the algorithm stopped. 1 for proper 
+#'    convergence, 2 when the algorithm stopped for lack of step in the
+#'    descent direction and 3 when the maximum number of iterations has
+#'    been reached.}
+#'  \item{trace}{If \code{keep.trace = TRUE}, a tracking list containing,
+#'    for each iteration, values of alpha coefficients, 
+#'    ridge and smooth function, convergence criteria, step length,
+#'    as well as the number of iterations.}
+#'  \item{covariates}{A data.frame containing the values of the variables not 
+#'    entering any index.}
+#'  \item{x}{A matrix containing the variables entering the indices. 
+#'    The variables are mapped to each index throught the element \code{index}.}
+#'  \item{y}{The response vector.}
+#'  \item{weights}{The weights used for estimation.}
+#'  \item{smooth.control}{The controlling parameters passed to the function
+#'    for the smoothing steps.}
+#'  \item{alpha.control}{The controlling parameters passed to the function
+#'    for the alpha update steps.}
+#'  \item{algo.control}{The controlling parameters passed to the function
+#'    for the minimization algorithm.}
+#'  \item{terms}{A \code{\link[stats]{terms.object}} representing the model.
+#'    Useful for prediction.}
+#'
+#' @seealso \code{\link{confint.cgaim}} for confidence interval,
+#'    \code{\link{predict.cgaim}} to predict new data,
+#'    \code{\link{plot.cgaim}} to plot ridge function.
+#' @export
+cgaim <- function(formula, data, weights, na.action, 
+  smooth.control = list(), alpha.control = list(), algo.control = list(), 
+  smooth_method = c("scam", "scar"), keep.trace = F)
 {
-  y <- as.vector(y)
-  n <- length(y)
-  if (!is.list(x)) x <- list(x) #! data.frame
-  x <- lapply(x, as.matrix)
-  if (any(sapply(x, nrow) != n)) stop("Matrices in x must have number of rows equal to the length of y")
-  p <- length(x)
-  pvec <- sapply(x, ncol)
-  indices <- pvec > 1
-  pdex <- sum(indices)
-  if (is.null(names(x))) names(x) <- sprintf("V%i", 1:p)
-  xnames <- names(x)
-  if(missing(w)) w <- rep(1/n,n) # Weights
-  # Default values for controlling the algorithm
-  defalgo.control <- list(tol = 5e-3, max.iter = 50, min.step.len = 0.1, 
-      halving = T, convergence_criterion = "LS")
-  algo.control <- c(algo.control, 
-    defalgo.control[!names(defalgo.control) %in% names(algo.control)])
-  # Default values for controlling alpha updates
-  defalpha.control <- list(norm.type = "L2", monotone = 0, sign.const = 0, 
-    init.type = "regression", constraint.algo = "QP", 
-    delta = TRUE)
-  alpha.control <- c(alpha.control, 
-    defalpha.control[!names(defalpha.control) %in% names(alpha.control)])
-  alpha.control[c("norm.type", "sign.const", "monotone")] <- 
-    lapply(alpha.control[c("norm.type", "sign.const", "monotone")], 
-    rep_len, length.out = pdex)
-  defsmoo.control <- list(shape = "tp")
-  smooth.control <- c(smooth.control, 
-    defsmoo.control[!names(defsmoo.control) %in% names(smooth.control)])
-  smooth.control$shape <- rep_len(smooth.control$shape, length.out = p)
-  # Center y
-  beta0 <- mean(y)
-  y <- y - beta0
-  # Initialize alphas
-  gn_par <- c(alpha.control[names(alpha.control) %in% names(formals(gn_update))], #! Pas nécessaire?
-    list(r = y, x = x[indices], dgz = rep(list(1), pdex), w = w))
-  gn_par$delta <- FALSE
-  alpha <- rep(list(1), p)
-  alpha[indices] <- do.call(gn_update, gn_par)
-  # Initialize ridge functions gz
-  zs <- mapply("%*%", x, alpha)
-  smo_par <- c(smooth.control, list(y = y, x = zs, w = w))
-  gz <- do.call(smoothing, smo_par)
-  # Main algorithm
-  result <- switch(algo.control$type,
-    two.steps = list(alpha = alpha, gz = gz$gz, z = zs),
-    gauss.newton = aim.GaussNewton(x = x, y = y, w = w, alpha = alpha, gz = gz,
-      smooth.control = smooth.control, alpha.control = alpha.control, 
-      algo.control = algo.control, trace = trace),
-    backfitting = aim.backfit(x = x, y = y, w = w, alpha = alpha, gz = gz, 
-      smooth.control = smooth.control, alpha.control = alpha.control, 
-      algo.control = algo.control, trace = trace),
-    optim = aim.optim(x = x, y = y, w = w, alpha = alpha, 
-      smooth.control = smooth.control, alpha.control = alpha.control, 
-      algo.control = algo.control),
-    ga = aim.ga(x = x, y = y, w = w, alpha = alpha, 
-      smooth.control = smooth.control, alpha.control = alpha.control, 
-      algo.control = algo.control, trace = trace),
-    stop("Unknown algo type")
-  )  
-  names(result$alpha) <- names(x)
-  colnames(result$gz) <- names(x)
-  # Adjust final values
-  final.gz <- scale(result$gz)
-  betas <- attr(final.gz, "scaled:scale")
-  yhat <-  beta0 + final.gz %*% betas
-  result$gz <- final.gz
-  result$coef <- c(beta0, betas)
-  names(result$coef) <- c("intercept", names(x))
-  result$fitted <- drop(yhat)
+  mt <- stats::terms(formula, specials = c("g", "s"), data = data)
+  allvars <- all.vars(formula)
+  gind <- attr(mt, "specials")$g
+  p <- length(gind)
+  ptot <- length(attr(mt, "term.labels"))
+  if (missing(na.action)) na.action <- getOption("na.action")
+  data <- do.call(na.action, list(object = data))
+  # Extract info on indices  
+  index_interp <- stats::model.frame(mt[gind - 1], data = data)
+  y <- stats::model.response(index_interp)
+  attr(y, "varname") <- allvars[1]
+  index_interp <- index_interp[-1]
+  # Labels for smoothing step
+  index_labels <- sapply(index_interp, attr, "label")
+  ulabs <- unique(index_labels)
+  plabs <- length(ulabs)
+  if (plabs < p){
+    for (ilab in ulabs){
+      wlabs <- which(index_labels == ilab)
+      if (length(wlabs) > 1){
+        index_labels[wlabs] <- sprintf("%s%i", ilab, 1:length(wlabs))
+      }
+    }
+  }
+  # Organizing variables in indices as a matrix with index positions   
+  pvec <- sapply(index_interp, attr, "nterms")
+  index <- rep(1:p, pvec)
+  names(index) <- rep(index_labels, pvec)
+  n <- nrow(index_interp)
+  Xind <- matrix(0, n, sum(pvec))
+  for (j in 1:p){
+    Xind[,index == j] <- index_interp[[j]]
+    colnames(Xind)[index == j] <- attr(index_interp[[j]], "term")
+  }
+  # Initialize alpha controls
+  alpha.control <- do.call(alpha.setup, alpha.control)
+  nai <- length(alpha.control$alpha.start)
+  if (nai > 0 && nai != sum(pvec)){
+    warning("alpha.init length is inconsistent with index matrix and is recycled")
+    alpha.control$alpha.start <- rep_len(alpha.control$alpha.start, sum(pvec))
+  }
+  # Organizing the constraint matrix
+  gconsts <- as.matrix(Matrix::bdiag(lapply(index_interp, attr, "Cmat")))
+  constr_mat <- alpha.control$Cmat
+  if (!is.null(constr_mat)){
+    if (ncol(constr_mat) != ncol(Xind)){
+      stop("Number of columns in alpha.control$Cmat does not match
+        the indices")
+    }
+  }
+  Cmat <- rbind(constr_mat, gconsts)
+  Cmat <- Cmat[!duplicated(Cmat),, drop = F]
+  alpha.control$Cmat <- Cmat
+  # Prepare parameters for smoothing
+  smooth_method <- match.arg(smooth_method)
+  setup_fun <- sprintf("%s.setup", smooth_method)
+  smooth.control <- do.call(setup_fun, list(mt, data, smooth.control))
+  algo.control$smooth_method <- smooth_method
+  # Calling the fitting function
+  pars <- algo.control[names(algo.control) %in% 
+    methods::formalArgs(gaim_gn)]
+  pars$x <- Xind
+  pars$y <- y
+  if (missing(weights)){
+    pars$w <- rep(1, n)
+  } else {
+    pars$w <- rep_len(weights, n)
+  }
+  pars$index <- index
+  pars$smooth.control <- smooth.control
+  pars$alpha.control <- alpha.control
+  result <- do.call(gaim_gn, pars)
+  result$alpha <- split(result$alpha, index)
+  for (j in 1:p){
+    names(result$alpha[[j]]) <- attr(index_interp[[j]], "term")
+  }
+  names(result$alpha) <- index_labels
+  attributes(result$gfit) <- attributes(result$gfit)[c("dim", "dimnames")]
+  names(result$beta)[gind] <- colnames(result$gfit)[gind - 1] <- index_labels
+  names(result$beta)[-c(1, gind)] <- colnames(result$gfit)[-(gind - 1)] <- 
+    colnames(smooth.control$Xcov)
+  if (!is.null(result$bvcov)){
+    colnames(result$bvcov) <- rownames(result$bvcov) <- names(result$beta)
+  }  
+  result$covariates <- smooth.control$Xcov
+  result$x <- Xind
+  result$y <- y
+  result$weights <- pars$w
+  result$smooth.control <- smooth.control
+  result$alpha.control <- alpha.control
+  result$algo.control <- algo.control[names(algo.control) %in% 
+    methods::formalArgs(gaim_gn)]
+  result$terms <- mt
+  class(result) <- "cgaim"
   return(result)
 }
 
-
-
-#' AIM by Gauss-Newton algorithm
-#'
-#' x is a matrix with the index variables
-#' y is the response
-#' w are weigths
-#' index is a vector identifying to which index each variable in x belongs. 
-#'      Additional variables not part of any index are not represented in index.
-#'      Overall we consider that the first d variables are in indices and
-#'      the d + 1 to dtot are additional covariates
-#'
-#' Repeat two steps until convergence:
-#'    1) Update coefficient of all indices at once by Gauss-Newton
-#'    2) Apply GAM (or SCAM) on indices to update Ridge Functions.
 gaim_gn <- function(x, y, w, index, 
   smooth.control = list(), alpha.control = list(),
   keep.trace = FALSE, max.iter = 50, tol = 1e-3, min.step.len = 0.1, 
-  halving = T, convergence_criterion = c("LS", "Alpha", "Offset"))
+  halving = T, convergence_criterion = c("change", "offset"), 
+  smooth_method = "scam")
 {
   convergence_criterion <- match.arg(convergence_criterion)
+  if (convergence_criterion == "change") tol <- rep_len(tol, 2)
   # Useful objects
   n <- length(y)
   p <- max(index)
   d <- length(index)
-  dtot <- ncol(x) 
   ind_pos <- split(1:d, index)
-  xind <- x[,1:d]
-  if (dtot > d){
-    xadd <- x[,(d + 1):dtot]
+  # Alpha initialization
+  if (is.null(alpha.control$alpha.start)){    
+    init_pars <- alpha.control
+    init_pars <- within(init_pars,{
+      y = y; x = x; w = w; index = index
+    })
+    alpha <- do.call(alpha_init, init_pars)
   } else {
-    xadd <- NULL
-  }     
-  # Alpha initialization    
-  init_pars <- alpha.control[names(alpha.control) %in%
-    intersect(names(formals(alpha_init)), names(formals(alpha_update)))
-  ]
-  init_pars <- within(init_pars,{
-    y = y; x = xind; w = w; index = index
-  })
-  alpha <- do.call(alpha_init, init_pars)
+    alpha <- alpha.control$alpha.start
+  }
   # Indice computation
   zs <- sapply(ind_pos, function(i, x, a) x[,i] %*% a[i], 
-    x = xind, a = alpha)
-  xsmoo <- cbind(zs, xadd)
-  # Initial smoothing 
-  smo_par <- c(smooth.control, list(y = y, x = xsmoo, w = w))
-  gz <- do.call(smoothing, smo_par)   
+    x = x, a = alpha)
+  colnames(zs) <- unique(names(index))
+  # Initial smoothing
+  smooth_fun <- sprintf("smooth_%s", smooth_method) 
+  smo_par <- c(smooth.control, 
+    list(y = y, x = zs, weights = w))
+  gz <- do.call(smooth_fun, smo_par)   
   yhat <- gz$intercept + rowSums(gz$gz)
   r <- y - yhat  
   # Convergence criterion
@@ -153,20 +251,23 @@ gaim_gn <- function(x, y, w, index,
   # If requested: tracing the algorithm evolution
   if (keep.trace){
     trace.list <- list(
-      convergence = rep(NA, max.iter),
+      criterion = matrix(NA, max.iter, length(tol)),
       alpha = matrix(NA, nrow = max.iter, ncol = d),
-      gz = rep(list(NA), max.iter)
+      gfit = rep(list(NA), max.iter),
+      step.len = rep(NA, max.iter) 
     )
-    trace.list$convergence[1] <- eps 
+    trace.list$criterion[1,] <- eps
+    trace.list$step.len[1] <- 1  
     trace.list$alpha[1,] <- alpha 
-    trace.list$gz[[1]] <- gz$gz
+    trace.list$gfit[[1]] <- gz$gz
   }
   # Gauss-Newton search
-  alpha_pars <- c(alpha.control[names(alpha.control) %in%
-      names(formals(alpha_update))],
-    list(x = xind, w = w, index = index))
-  alpha_pars$delta <- TRUE
-  while(eps > tol && c1 < max.iter){
+  alpha_pars <- c(
+    alpha.control[names(alpha.control) %in% 
+      methods::formalArgs(alpha_update)],
+    list(x = x, w = w, index = index, delta = TRUE))
+  stopflag <- 0
+  while(stopflag == 0){
     # Update alphas
     alpha_pars$y <- r
     alpha_pars$dgz <- gz$dgz
@@ -180,44 +281,83 @@ gaim_gn <- function(x, y, w, index,
       alpha.new <- unlist(
         tapply(alpha.new, index, normalize, type = alpha.control$norm.type))
       zs <- sapply(ind_pos, function(i, x, a) x[,i] %*% a[i], 
-        x = xind, a = alpha.new)
-      smo_par$x <- cbind(zs, xadd)
-      gz <- do.call(smoothing, smo_par)
+        x = x, a = alpha.new)
+      colnames(zs) <- unique(names(index))   
+      smo_par$x <- zs
+      gz <- do.call(smooth_fun, smo_par)
       yhat <- gz$intercept + rowSums(gz$gz)
       l2.new <- L2(y, yhat, w)
-      r <- y - yhat
-      eps <- switch(convergence_criterion,
-        LS = (l2 - l2.new) / l2,
-        Alpha = max(abs(alpha.new - alpha) / abs(alpha)),
-        Offset = offset_convergence(r, xind, gz$dgz[,index])
-      )
-      if (eps > 0 || cuts < min.step.len || 
-        !halving){
+      if (l2 - l2.new > 0 || !halving){
          break
       }
       cuts <- cuts / 2
+      if (cuts < min.step.len){ 
+        stopflag <- 2
+        break
+      }
     }
+    if (convergence_criterion == "change"){
+      eps <- c((l2 - l2.new) / l2, max(abs(alpha.new - alpha) / abs(alpha)))
+    } else {
+      eps <- offset_convergence(r, x, gz$dgz[,index])
+    }
+    r <- y - yhat
     alpha <- alpha.new
     l2 <- l2.new
     c1 <- c1 + 1       
     if (keep.trace){ # Tracing the algorithm evolution
-      trace.list$convergence[c1] <- eps 
+      trace.list$criterion[c1,] <- eps
+      trace.list$step.len[c1] <- cuts 
       trace.list$alpha[c1,] <- alpha 
-      trace.list$gz[[c1]] <- gz$gz
+      trace.list$gfit[[c1]] <- gz$gz
     }
-  }
-  if (keep.trace){
-    trace.list$convergence <- trace.list$convergence[1:c1]
-    trace.list$alpha <- trace.list$alpha[1:c1,]
-    trace.list$gz <- trace.list$gz[1:c1]
-    trace.list$niterations <- c1
+    if (all(eps < tol)){
+      stopflag <- 1
+    } else { 
+      if (c1 >= max.iter){
+        stopflag <- 3
+      } 
+    }    
   }
   final.gz <- scale(gz$gz)
-  final.gz[,apply(gz$gz, 2, sd) == 0] <- gz$gz[,apply(gz$gz, 2, sd) == 0]
+  final.gz[,apply(gz$gz, 2, stats::sd) == 0] <- 
+    gz$gz[,apply(gz$gz, 2, stats::sd) == 0]
   betas <- attr(final.gz, "scaled:scale")
-  output <- list(alpha = alpha, gz = final.gz, z = zs, 
-    beta = c(gz$intercept, betas), am.fit = gz$fit,
-    x = x, y = y, index = index, dgz = gz$dgz, fitted = yhat)
-  if (keep.trace) output$trace <- trace.list
+  r <- y - yhat
+  sig2 <- sum(r^2) / (n - d)
+  # Parameter covar matrix
+  Vmat <- x * gz$dgz[,index]
+  vtv <- crossprod(Vmat)
+  if (all(vtv > .Machine$double.eps)){
+    avcov <- chol2inv(chol(vtv))
+    avcov <- avcov * sig2
+    colnames(avcov) <- rownames(avcov) <- 
+      paste(names(index), colnames(x), sep = ".")
+  } else {
+    avcov <- NULL
+  }
+  bvtv <- crossprod(cbind(1, final.gz))
+  if (all(bvtv > .Machine$double.eps)){
+    bvcov <- chol2inv(chol(bvtv)) * sig2
+  } else {
+    bvcov <- NULL
+  }
+  output <- list(alpha = alpha, gfit = final.gz, indexfit = zs, 
+    beta = c(gz$intercept + sum(attr(final.gz, "scaled:center")), betas),
+    index = index, fitted = yhat, residuals = r, avcov = avcov, bvcov = bvcov,
+    gse = gz$se, rss = l2, flag = stopflag)
+  if (keep.trace){
+    if (convergence_criterion == "change"){
+      colnames(trace.list$criterion) <- c("rss", "alpha")
+    } else {
+      colnames(trace.list$criterion) <- "offset"
+    }
+    trace.list$criterion <- trace.list$criterion[1:c1,,drop = FALSE]
+    trace.list$alpha <- trace.list$alpha[1:c1,]
+    trace.list$gfit <- trace.list$gfit[1:c1]
+    trace.list$step.len <- trace.list$step.len[1:c1] 
+    trace.list$niter <- c1
+    output$trace <- trace.list
+  }
   return(output)   
 }
