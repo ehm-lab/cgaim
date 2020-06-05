@@ -4,8 +4,7 @@
 \alias{build_constraints}
 \title{Common constraints}
 \usage{
-build_constraints(nvars, monotone = 0, sign.const = 0,
-  first.const = 1)
+build_constraints(nvars, monotone = 0, sign.const = 0, first.const = 1)
 }
 \arguments{
 \item{nvars}{A vector giving, for each index, its number of variables.}

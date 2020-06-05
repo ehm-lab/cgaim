@@ -4,11 +4,10 @@
 \alias{g}
 \title{Defining indices in CGAIM}
 \usage{
-g(..., label = "Index", constraints = list(), bs = "tp",
-  sOptions = list())
+g(..., label = term[1], constraints = list(), bs = "tp", sOptions = list())
 }
 \arguments{
-\item{...}{A list of variables on which the index is based.}
+\item{...}{A list of variables on which the index is based. May contain vectors and matrices.}
 
 \item{label}{A character used to give a name to the index. Useful for
 displaying the results.}

@@ -15,7 +15,7 @@ scam.setup <- function(mt, data, smooth.control){
   smooth.control$formula <- gam_formula
   covariate_names <- setdiff(all.vars(mt)[-1], 
     unlist(lapply(index_interp, attr, "term")))
-  smooth.control$Xcov <- data[,covariate_names]
+  smooth.control$Xcov <- data[covariate_names]
   # Special default parameters (tol)
   return(smooth.control)
 }

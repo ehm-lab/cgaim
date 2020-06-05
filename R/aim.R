@@ -65,12 +65,12 @@
 #' @return A \code{cgaim} object, i.e. a list with components:
 #'  \item{alpha}{A named list of index coefficients.}
 #'  \item{gfit}{A matrix containing the ridge and smooth functions 
-#'    evaluated at the observations.}
+#'    evaluated at the observations. Note that column ordering puts indices first and covariates after.}
 #'  \item{indexfit}{A matrix containing the indices evaluated at the 
 #'    observations.}
 #'  \item{beta}{A vector containing the intercept and the scale coefficient
 #'    of each ridge and smooth function. Includes the \eqn{\gamma_{k}} of
-#'    the CGAIM model above}.
+#'    the CGAIM model above. Note that ordering puts indices first and covariates after.}.
 #'  \item{index}{A vector identifying to which index the columns of the
 #'    element \code{x} belong.}
 #'  \item{fitted}{A vector of fitted y values.}
@@ -119,8 +119,9 @@ cgaim <- function(formula, data, weights, na.action,
   p <- length(gind)
   ptot <- length(attr(mt, "term.labels"))
   if (missing(na.action)) na.action <- getOption("na.action")
-  data <- do.call(na.action, list(object = data))
-  # Extract info on indices  
+  # Extract info on indices
+  data <- stats::model.frame(stats::reformulate(allvars), data = data, 
+    na.action = na.action)  
   index_interp <- stats::model.frame(mt[gind - 1], data = data)
   y <- stats::model.response(index_interp)
   attr(y, "varname") <- allvars[1]
@@ -145,7 +146,7 @@ cgaim <- function(formula, data, weights, na.action,
   Xind <- matrix(0, n, sum(pvec))
   for (j in 1:p){
     Xind[,index == j] <- index_interp[[j]]
-    colnames(Xind)[index == j] <- attr(index_interp[[j]], "term")
+    colnames(Xind)[index == j] <- colnames(index_interp[[j]])
   }
   # Initialize alpha controls
   alpha.control <- do.call(alpha.setup, alpha.control)
@@ -184,16 +185,14 @@ cgaim <- function(formula, data, weights, na.action,
   pars$index <- index
   pars$smooth.control <- smooth.control
   pars$alpha.control <- alpha.control
+  # Fitting the model
   result <- do.call(gaim_gn, pars)
   result$alpha <- split(result$alpha, index)
   for (j in 1:p){
-    names(result$alpha[[j]]) <- attr(index_interp[[j]], "term")
+    names(result$alpha[[j]]) <- colnames(index_interp[[j]])
   }
   names(result$alpha) <- index_labels
   attributes(result$gfit) <- attributes(result$gfit)[c("dim", "dimnames")]
-  names(result$beta)[gind] <- colnames(result$gfit)[gind - 1] <- index_labels
-  names(result$beta)[-c(1, gind)] <- colnames(result$gfit)[-(gind - 1)] <- 
-    colnames(smooth.control$Xcov)
   if (!is.null(result$bvcov)){
     colnames(result$bvcov) <- rownames(result$bvcov) <- names(result$beta)
   }  

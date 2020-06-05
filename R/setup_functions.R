@@ -2,7 +2,7 @@
 #'
 #' Function used to define indices whithin a \code{cgaim} formula. 
 #'
-#' @param ... A list of variables on which the index is based.
+#' @param ... A list of variables on which the index is based. May contain vectors and matrices.
 #' @param label A character used to give a name to the index. Useful for
 #'    displaying the results. 
 #' @param constraints A list of common constraints for the index. See 
@@ -16,20 +16,24 @@
 #'    for the ridge function smoothing.
 #'
 #' @export
-g <- function(..., label = "Index", constraints = list(), bs = "tp", 
+g <- function(..., label = term[1], constraints = list(), bs = "tp", 
   sOptions = list())
 {
   vars <- as.list(substitute(list(...)))[-1]
   term <- sapply(vars, deparse)
   Xvars <- list(...)
-  n <- unique(sapply(Xvars, length))
-  if (length(n) > 1) stop("All variables in 'g' must have the same length")
-  p <- length(Xvars)
-  if (p < 2) warning(sprintf("Less than 2 variables for index %s", label))
-  Xmat <- matrix(0, n, p, dimnames = list(NULL, term))
-  for (i in 1:p){
-    Xmat[,i] <- Xvars[[i]]
+  for (j in seq_len(length(Xvars))){
+    Xvars[[j]] <- as.matrix(Xvars[[j]])
+    if (ncol(Xvars[[j]]) > 1 && is.null(colnames(Xvars[[j]]))) 
+      colnames(Xvars[[j]]) <- as.character(seq_len(ncol(Xvars[[j]])))
   }
+  pvec <- sapply(Xvars, ncol)
+  n <- unique(sapply(Xvars, nrow))
+  if (length(n) > 1) stop("All variables in 'g' must have the same length")  
+  Xmat <- do.call(cbind, Xvars)
+  colnames(Xmat) <- unlist(Map(paste0, term, lapply(Xvars, colnames)))
+  p <- ncol(Xmat)
+  if (p < 2) warning(sprintf("Less than 2 variables for index %s", label))
   s_formula <- sprintf("bs = \"%s\"", bs)
   obt_opts <- deparse(substitute(sOptions))
   opts_form <- substr(obt_opts, 6, nchar(obt_opts) - 1)
@@ -40,8 +44,8 @@ g <- function(..., label = "Index", constraints = list(), bs = "tp",
   constraints$nvars <- p
   Cmat <- do.call(build_constraints, constraints)
   attributes(Xmat) <- c(attributes(Xmat), 
-    list(term = term, nterms = length(term), 
-    label = label, opt_formula = s_formula, Cmat = Cmat))
+    list(term = term, nterms = ncol(Xmat), label = label, 
+    opt_formula = s_formula, Cmat = Cmat))
   return(Xmat)
 }
 
@@ -60,6 +64,8 @@ g <- function(..., label = "Index", constraints = list(), bs = "tp",
 #' @param first.const A vector indicating a sign constraint for first
 #'    coefficient of each index. Recommended for indentifiability purposes but
 #'    overriden by \code{sign.const}.
+#'
+#' @export
 build_constraints <- function(nvars, monotone = 0, sign.const = 0, 
   first.const = 1)
 {

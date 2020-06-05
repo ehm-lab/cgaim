@@ -314,7 +314,7 @@ print.cgaim <- function(x, ...){
 #'    \code{type = "terms"}, returns each ridge and smooth function separately.
 #'    When \code{type = "indices"}, returns predicted indices values.
 #' @param select A numeric or character vector indicating terms to return
-#'    when \code{type = "terms"}.
+#'    when \code{type = "terms"} or \code{type = "indices"}.
 #' @param na.action A function indicating how to treat NA values when 
 #'    when \code{newdata} is not missing.
 #' @param ... For compatibility with the default \code{predict} method. Unused

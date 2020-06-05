@@ -4,9 +4,17 @@
 \alias{cgaim}
 \title{Constrained groupwise additive index models}
 \usage{
-cgaim(formula, data, weights, na.action, smooth.control = list(),
-  alpha.control = list(), algo.control = list(),
-  smooth_method = c("scam", "scar"), keep.trace = F)
+cgaim(
+  formula,
+  data,
+  weights,
+  na.action,
+  smooth.control = list(),
+  alpha.control = list(),
+  algo.control = list(),
+  smooth_method = c("scam", "scar"),
+  keep.trace = F
+)
 }
 \arguments{
 \item{formula}{A CGAIM formula with index terms \code{\link{g}}, 
@@ -74,12 +82,12 @@ Updating the coefficient is made through quadratic programming. Currently,
 A \code{cgaim} object, i.e. a list with components:
  \item{alpha}{A named list of index coefficients.}
  \item{gfit}{A matrix containing the ridge and smooth functions 
-   evaluated at the observations.}
+   evaluated at the observations. Note that column ordering puts indices first and covariates after.}
  \item{indexfit}{A matrix containing the indices evaluated at the 
    observations.}
  \item{beta}{A vector containing the intercept and the scale coefficient
    of each ridge and smooth function. Includes the \eqn{\gamma_{k}} of
-   the CGAIM model above}.
+   the CGAIM model above. Note that ordering puts indices first and covariates after.}.
  \item{index}{A vector identifying to which index the columns of the
    element \code{x} belong.}
  \item{fitted}{A vector of fitted y values.}
@@ -117,4 +125,9 @@ A \code{cgaim} object, i.e. a list with components:
 \description{
 Fits a constrained groupwise additive index model (CGAIM) through
  alternative sequential quadratic programming steps.
+}
+\seealso{
+\code{\link{confint.cgaim}} for confidence interval,
+   \code{\link{predict.cgaim}} to predict new data,
+   \code{\link{plot.cgaim}} to plot ridge function.
 }

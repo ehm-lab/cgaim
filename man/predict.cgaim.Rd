@@ -4,8 +4,14 @@
 \alias{predict.cgaim}
 \title{Predictions from a fitted CGAIM object}
 \usage{
-\method{predict}{cgaim}(object, newdata, type = c("response", "terms",
-  "indices"), select = NULL, na.action = "na.pass", ...)
+\method{predict}{cgaim}(
+  object,
+  newdata,
+  type = c("response", "terms", "indices"),
+  select = NULL,
+  na.action = "na.pass",
+  ...
+)
 }
 \arguments{
 \item{object}{A \code{gaim} object.}
@@ -19,7 +25,7 @@ When \code{type = "response"}, the predicted response is returned. When
 When \code{type = "indices"}, returns predicted indices values.}
 
 \item{select}{A numeric or character vector indicating terms to return
-when \code{type = "terms"}.}
+when \code{type = "terms"} or \code{type = "indices"}.}
 
 \item{na.action}{A function indicating how to treat NA values when 
 when \code{newdata} is not missing.}
