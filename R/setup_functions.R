@@ -51,6 +51,8 @@ g <- function(..., label = term[1], acons = list(),
 #' @describeIn g Additional smooth terms
 #'
 #' @param x Covariate on which the smooth is applied.
+#' 
+#' @export
 s <- function(x, fcons = NULL, s_opts = list()){
   cl <- match.call()
   if (!is.null(fcons)){ 
