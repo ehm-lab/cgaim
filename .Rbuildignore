@@ -1,5 +1,5 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 MASTER.R
-TODO.txt
-changelog.md
+TODO.*
+NEWS.md

@@ -13,7 +13,7 @@
 #'    based on normal approximation. The others are all based on bootstrap.
 #'    \code{"boot.pct"} computes intervals as percentiles of the bootstrap
 #'    distribution. \code{"boot.t"} computes studentized bootstrap intervals.
-#'    \code{"boot.bca"} computes bias-corrected and accelerated bootstrap
+#'    \code{"boot.bca"} (still experimental, use at your own risk) computes bias-corrected and accelerated bootstrap
 #'    intervals. Can include several types.
 #' @param boot.type Character indicating the type of resampling for bootstrap.
 #'    If \code{boot.type = "residuals"} (the default), residuals are
@@ -109,11 +109,15 @@ confint.cgaim <- function(object, parm, level = 0.95,
     betaCI$normal <- t(matrix(betas, 2, length(parm), byrow = TRUE) + conflims)
     colnames(alphaCI$normal) <- colnames(betaCI$normal) <- level.labels
     rownames(betaCI$normal) <- names(betas)
-    gCI$normal <- array(0, c(n, length(parm), 2), 
-      dimnames = list(rownames(gs), colnames(gs), level.labels))
-    for (j in 1:length(parm)){
-      gconf <- t(sapply(gses[,j], "*", tlims))
-      gCI$normal[,j,] <- apply(gconf, 2, "+", gs[,j])
+    if (object$algo.control$smooth_method == "scam"){      
+      gCI$normal <- array(0, c(n, length(parm), 2), 
+        dimnames = list(rownames(gs), colnames(gs), level.labels))
+      for (j in 1:length(parm)){
+        gconf <- t(sapply(gses[,j], "*", tlims))
+        gCI$normal[,j,] <- apply(gconf, 2, "+", gs[,j])
+      }
+    } else {
+      warning("Cannot provide confidence interval for ridge functions with the chosen smoothing method")
     }
   } 
   if (any(c("boot.pct", "boot.bca", "boot.t") %in% type)){
@@ -393,8 +397,8 @@ predict.cgaim <- function(object, newdata,
 #' @param ci An object returned by a call to \code{link{confint.cgaim}}. If
 #'    \code{NULL}, no confidence interval is drawn.
 #' @param ci.type When \code{ci} is not \code{NULL}, which confidence interval
-#'    to plot. See \code{link{confint.cgaim}} for the different types. Default
-#'    to normal confidence interval.
+#'    to plot. See \code{link{confint.cgaim}} for the different types. For now,
+#'    only normal confidence intervals work.
 #' @param ci.plot Whether to plot the confidence intervals as shaded areas
 #'    \code{ci.plot = "polygon"} or as lines \code{ci.plot = "lines"}.
 #' @param ci.args Additional arguments to be passed to the function used
@@ -422,7 +426,7 @@ plot.cgaim <- function(x, select = NULL, ci = NULL,
   if (!is.null(ci)){
     ci.type <- match.arg(ci.type)
     ci.plot <- match.arg(ci.plot)
-    allcis <- ci$g[[ci.type]][,select,,drop = FALSE]
+    allcis <- ci$g[[ci.type]]
     if (ci.plot == "polygon"){
       defArgs <- list(border = NA, col = "grey")      
     }

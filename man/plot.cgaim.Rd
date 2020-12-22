@@ -24,8 +24,8 @@ to plot.}
 \code{NULL}, no confidence interval is drawn.}
 
 \item{ci.type}{When \code{ci} is not \code{NULL}, which confidence interval
-to plot. See \code{link{confint.cgaim}} for the different types. Default
-to normal confidence interval.}
+to plot. See \code{link{confint.cgaim}} for the different types. For now,
+only normal confidence intervals work.}
 
 \item{ci.plot}{Whether to plot the confidence intervals as shaded areas
 \code{ci.plot = "polygon"} or as lines \code{ci.plot = "lines"}.}

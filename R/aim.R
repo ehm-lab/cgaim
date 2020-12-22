@@ -10,25 +10,18 @@
 #'  alternative sequential quadratic programming steps.
 #'
 #' @param formula A CGAIM formula with index terms \code{\link{g}}, 
-#'    smooth terms \code{\link[mgcv]{s}} and linear terms. Also see
-#'    \code{\link[scam]{shape.constrained.smooth.terms}} for inclusion of
-#'    shape constraints.
+#'    smooth terms \code{\link{s}} and linear terms. 
 #' @param data A data.frame containing the variables of the model.    
-#' @param weights A vector of weights for observations. By default, a unit 
-#'    weight is attributed to each observation.
+#' @param weights A vector of optional weights for observations. If \code{NULL}, unit weights are considered.
 #' @param na.action A function indicating what treatment applying to NAs. If
 #'    missing the default is set by the \code{na.action} setting of \code{options}. See
 #'    \code{\link[stats]{na.fail}}.
-#' @param smooth.control A list containing controlling parameters for the
-#'    smoothing steps of the algorithm. Basically, any parameters passed
-#'    either to \code{\link[scam]{scam}} or to \code{\link[scar]{scar}}
-#'    depending on the value of \code{smooth_method}. See details.
+#' @param smooth_method The shape constrained smoothing method to consider. The default is \code{\link[scam]{scam}}, but other options are \code{\link[cgam]{cgam}} and \code{\link[scar]{scar}}. See details.
+#' @param smooth.control A list containing parameters for the shape-contrained smoothing function given passed to \code{smooth_method}. See help of the functions for the list of parameters.
 #' @param alpha.control A list containing the controlling parameters for the
 #'    alpha optimization steps of the algorithm. See \code{\link{alpha.setup}}.
 #' @param algo.control A list containing controlling parameters for the
 #'    whole algorithm. See \code{\link{algo.setup}}.
-#' @param smooth_method The shape constrained smoothing algorithm to
-#'    consider. See details.
 #' @param keep.trace Logical. If TRUE, the result contains a 'trace' element
 #'    giving the intermediate values of alpha coefficients and ridge functions
 #'    at each step of the algorithm. Useful for behaviour tracking.
@@ -37,23 +30,19 @@
 #'  \deqn{y_{i} = \beta_{0} + \sum_{j} \beta_{j} g_{j}(\alpha_{j}^{T} x_{ij})
 #'    + \sum_{k} \gamma_{k} f_{k}(x_{ik}) + e_{i}}
 #'  The formula interface considers \code{\link{g}} to identify index terms,
-#'   \code{\link[mgcv]{s}} for smooth functions and can also integrate 
-#'    linear terms in the classical fashion. All smooth terms can be
-#'    shape constrained, see \code{\link[scam]{shape.constrained.smooth.terms}}.
+#'   \code{\link{s}} for smooth functions and can also include 
+#'    linear terms. All smooth terms can be
+#'    shape constrained.
 #'
 #' The CGAIM allows for linear constraints on the alpha coefficients. 
 #'  Common constraints can be given for each index through the 
-#'  \code{\link{g}} terms in the formula. A more general constraint matriox 
-#'  can be given through \code{alpha.control$Cmat}. See 
+#'  \code{\link{g}} terms in the formula. Custom constraints, including multi-index constraints can be passed as a matrix through \code{alpha.control$Cmat}. See 
 #'  \code{\link{alpha.setup}}.
 #'
 #' The CGAIM is fitted through an iterative algorithm that alternates between
 #'  estimating the ridge functions \eqn{g_{j}} (and other non-index terms) and 
 #'  updating the coefficients \eqn{\alpha_{j}}. The smoothing of ridge functions
-#'  supports currently two methods \code{\link[scam]{scam}} and 
-#'  \code{\link[scar]{scar}}. Although default parameter are set internally,
-#'  parameters controlling the smoothing methods can be passed through
-#'  the parameter \code{smooth.control}.
+#'  currently supports three methods: \code{\link[scam]{scam}} (the default), \code{\link[cgam]{cgam}} and \code{\link[scar]{scar}}. The list \code{smooth.control} allows controlling the functions.
 #'
 #' Updating the coefficient is made through quadratic programming. Currently,
 #'  it is carried out by either the function 
@@ -76,9 +65,10 @@
 #'  \item{fitted}{A vector of fitted y values.}
 #'  \item{residuals}{A vector of residuals.}
 #'  \item{avcov}{The covariance matrix of alpha coefficients. Naively 
-#'    computed from the last step of the algorithm.}
+#'    computed from the last step of the algorithm. STILL EXPERIMENTAL.}
 #'  \item{bvcov}{The covariance matrix of beta coefficients. 
-#'    Computed from the design matrix created by ridge and smooth functions.}
+#'    Computed from the design matrix created by ridge and smooth functions.
+#'    STILL EXPERIMENTAL.}
 #'  \item{gse}{Standard errors of ridge and smooth functions. Only
 #'    available when \code{smooth_method = 'scam'}.}
 #'  \item{rss}{The residual sum of squares of the fit.}
@@ -108,10 +98,12 @@
 #' @seealso \code{\link{confint.cgaim}} for confidence interval,
 #'    \code{\link{predict.cgaim}} to predict new data,
 #'    \code{\link{plot.cgaim}} to plot ridge function.
+#'
 #' @export
 cgaim <- function(formula, data, weights, na.action, 
+  smooth_method = c("scam", "cgam", "scar"), 
   smooth.control = list(), alpha.control = list(), algo.control = list(), 
-  smooth_method = c("scam", "scar"), keep.trace = F)
+  keep.trace = F)
 {
   mt <- stats::terms(formula, specials = c("g", "s"), data = data)
   allvars <- all.vars(formula)
@@ -164,9 +156,11 @@ cgaim <- function(formula, data, weights, na.action,
         the indices")
     }
   }
-  Cmat <- rbind(constr_mat, gconsts)
-  Cmat <- Cmat[!duplicated(Cmat),, drop = F]
-  alpha.control$Cmat <- Cmat
+  if (length(gconsts) > 0 || length(constr_mat) > 0){
+    Cmat <- rbind(constr_mat, gconsts)
+    Cmat <- Cmat[!duplicated(Cmat),, drop = F]
+    alpha.control$Cmat <- Cmat
+  }
   # Prepare parameters for smoothing
   smooth_method <- match.arg(smooth_method)
   setup_fun <- sprintf("%s.setup", smooth_method)
@@ -315,6 +309,7 @@ gaim_gn <- function(x, y, w, index,
     } else { 
       if (c1 >= max.iter){
         stopflag <- 3
+        warning(sprintf("Fitting did not converge after %i iterations. Consider revising the constraints", max.iter))
       } 
     }    
   }
@@ -327,8 +322,8 @@ gaim_gn <- function(x, y, w, index,
   # Parameter covar matrix
   Vmat <- x * gz$dgz[,index]
   vtv <- crossprod(Vmat)
-  if (all(vtv > .Machine$double.eps)){
-    avcov <- chol2inv(chol(vtv))
+  avcov <- try(chol2inv(chol(vtv)), silent = TRUE)
+  if (!inherits(avcov, "try-error")){
     avcov <- avcov * sig2
     colnames(avcov) <- rownames(avcov) <- 
       paste(names(index), colnames(x), sep = ".")
@@ -336,15 +331,14 @@ gaim_gn <- function(x, y, w, index,
     avcov <- NULL
   }
   bvtv <- crossprod(cbind(1, final.gz))
-  if (all(bvtv > .Machine$double.eps)){
-    bvcov <- chol2inv(chol(bvtv)) * sig2
-  } else {
+  bvcov <- try(chol2inv(chol(bvtv)), silent = TRUE)
+  if (inherits(bvcov, "try-error")){
     bvcov <- NULL
   }
   output <- list(alpha = alpha, gfit = final.gz, indexfit = zs, 
     beta = c(gz$intercept + sum(attr(final.gz, "scaled:center")), betas),
     index = index, fitted = yhat, residuals = r, avcov = avcov, bvcov = bvcov,
-    gse = gz$se, rss = l2, flag = stopflag)
+    gse = gz$se, rss = l2, flag = stopflag, niter = c1)
   if (keep.trace){
     if (convergence_criterion == "change"){
       colnames(trace.list$criterion) <- c("rss", "alpha")
@@ -354,8 +348,7 @@ gaim_gn <- function(x, y, w, index,
     trace.list$criterion <- trace.list$criterion[1:c1,,drop = FALSE]
     trace.list$alpha <- trace.list$alpha[1:c1,]
     trace.list$gfit <- trace.list$gfit[1:c1]
-    trace.list$step.len <- trace.list$step.len[1:c1] 
-    trace.list$niter <- c1
+    trace.list$step.len <- trace.list$step.len[1:c1]
     output$trace <- trace.list
   }
   return(output)   

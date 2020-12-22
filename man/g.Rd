@@ -2,28 +2,36 @@
 % Please edit documentation in R/setup_functions.R
 \name{g}
 \alias{g}
+\alias{s}
 \title{Defining indices in CGAIM}
 \usage{
-g(..., label = term[1], constraints = list(), bs = "tp", sOptions = list())
+g(..., label = term[1], acons = list(), fcons = NULL, s_opts = list())
+
+s(x, fcons = NULL, s_opts = list())
 }
 \arguments{
-\item{...}{A list of variables on which the index is based. May contain vectors and matrices.}
+\item{...}{Variables on which the index is based. May contain vectors and matrices.}
 
 \item{label}{A character used to give a name to the index. Useful for
-displaying the results.}
+displaying the results. By default use the name of the variable passed (the first one for \code{g}).}
 
-\item{constraints}{A list of common constraints for the index. See 
-\code{\link{build_constraints}} for built-in constraints. For
-other constraints, see \code{\link{alpha.setup}}.}
+\item{acons}{A list of constraints to be applied to the index weights \code{alpha}. Can be named values for common constraints as proposed in \code{\link{build_constraints}} for built-in constraints. Can also contain numeric vectors specifying custom linear constraints, see \code{\link{alpha.setup}}. TO BE DONE}
 
-\item{bs}{The type of basis functions for the ridge function. Used to
-give shape constraints. The bases allowed are expressed as in the
-\code{scam} (\code{\link[scam]{shape.constrained.smooth.terms}}) and
-\code{mgcv} (\code{\link[mgcv]{smooth.terms}}) packages.}
+\item{fcons}{The type of shape constraint to be applied on the smooth function. See details for the list of shape constraints allowed.}
 
-\item{sOptions}{A named list of options to be passed to \code{\link[mgcv]{s}}
-for the ridge function smoothing.}
+\item{s_opts}{A named list of options to be passed to the smoothing of ridge functions. Arguments allowed heavily depend on the method used to smooth additive models. See details.
+
+For now, eight shape-constraints are allowed for either \code{g} or \code{s}: monotone increasing (\code{fcons = "inc"}), monotone decreasing (\code{fcons = "dec"}), convex (\code{fcons = "cvx"}), concave (\code{fcons = "ccv"}), increasing and convex(\code{fcons = "inccvx"}), decreasing and convex (\code{fcons = "deccvx"}), increasing and concave (\code{fcons = "incccv"}), decreasing and concave (\code{fcons = "decccv"}). 
+
+The \code{s_opts} argument can be used to pass a list of argument for basis functions used in the chosen shape-consrained smoothing method. The possible arguments when \code{smooth_method = "scam"} can be found in \code{\link[mgcv]{s}}. For \code{smooth_method = "cgam"}, the parameters allowed may vary according to the shape-contraint chosen. The full list can be found in \code{\link[cgam]{cgam}}. Only the constraints beginning with \code{s.} are allowed for now. Finally, no parameter can be passed when \code{smooth_method = "scar"} since the method does not use basis functions.}
+
+\item{x}{Covariate on which the smooth is applied.}
 }
 \description{
-Function used to define indices whithin a \code{cgaim} formula.
+Function used to define terms whithin a \code{cgaim} formula. \code{g} for an index on a list of variable and \code{s} for a smooth covariate.
 }
+\section{Functions}{
+\itemize{
+\item \code{s}: Additional smooth terms
+}}
+

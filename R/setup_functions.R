@@ -1,23 +1,21 @@
 #' Defining indices in CGAIM
 #'
-#' Function used to define indices whithin a \code{cgaim} formula. 
+#' Function used to define terms whithin a \code{cgaim} formula. \code{g} for an index on a list of variable and \code{s} for a smooth covariate.
 #'
-#' @param ... A list of variables on which the index is based. May contain vectors and matrices.
+#' @param ... Variables on which the index is based. May contain vectors and matrices.
 #' @param label A character used to give a name to the index. Useful for
-#'    displaying the results. 
-#' @param constraints A list of common constraints for the index. See 
-#'    \code{\link{build_constraints}} for built-in constraints. For
-#'    other constraints, see \code{\link{alpha.setup}}.
-#' @param bs The type of basis functions for the ridge function. Used to
-#'    give shape constraints. The bases allowed are expressed as in the
-#'    \code{scam} (\code{\link[scam]{shape.constrained.smooth.terms}}) and
-#'    \code{mgcv} (\code{\link[mgcv]{smooth.terms}}) packages.
-#' @param sOptions A named list of options to be passed to \code{\link[mgcv]{s}}
-#'    for the ridge function smoothing.
+#'    displaying the results. By default use the name of the variable passed (the first one for \code{g}).
+#' @param acons A list of constraints to be applied to the index weights \code{alpha}. Can be named values for common constraints as proposed in \code{\link{build_constraints}} for built-in constraints. Can also contain numeric vectors specifying custom linear constraints, see \code{\link{alpha.setup}}. TO BE DONE
+#' @param fcons The type of shape constraint to be applied on the smooth function. See details for the list of shape constraints allowed.
+#' @param s_opts A named list of options to be passed to the smoothing of ridge functions. Arguments allowed heavily depend on the method used to smooth additive models. See details.
+#'
+#' For now, eight shape-constraints are allowed for either \code{g} or \code{s}: monotone increasing (\code{fcons = "inc"}), monotone decreasing (\code{fcons = "dec"}), convex (\code{fcons = "cvx"}), concave (\code{fcons = "ccv"}), increasing and convex(\code{fcons = "inccvx"}), decreasing and convex (\code{fcons = "deccvx"}), increasing and concave (\code{fcons = "incccv"}), decreasing and concave (\code{fcons = "decccv"}). 
+#'
+#' The \code{s_opts} argument can be used to pass a list of argument for basis functions used in the chosen shape-consrained smoothing method. The possible arguments when \code{smooth_method = "scam"} can be found in \code{\link[mgcv]{s}}. For \code{smooth_method = "cgam"}, the parameters allowed may vary according to the shape-contraint chosen. The full list can be found in \code{\link[cgam]{cgam}}. Only the constraints beginning with \code{s.} are allowed for now. Finally, no parameter can be passed when \code{smooth_method = "scar"} since the method does not use basis functions.
 #'
 #' @export
-g <- function(..., label = term[1], constraints = list(), bs = "tp", 
-  sOptions = list())
+g <- function(..., label = term[1], acons = list(), 
+  fcons = NULL, s_opts = list())
 {
   vars <- as.list(substitute(list(...)))[-1]
   term <- sapply(vars, deparse)
@@ -34,19 +32,36 @@ g <- function(..., label = term[1], constraints = list(), bs = "tp",
   colnames(Xmat) <- unlist(Map(paste0, term, lapply(Xvars, colnames)))
   p <- ncol(Xmat)
   if (p < 2) warning(sprintf("Less than 2 variables for index %s", label))
-  s_formula <- sprintf("bs = \"%s\"", bs)
-  obt_opts <- deparse(substitute(sOptions))
+  if (!is.null(fcons)){ 
+    fcons <- match.arg(fcons, c("inc", "dec", "cvx", "ccv", 
+      "inccvx", "deccvx", "incccv", "decccv"))
+  }
+  obt_opts <- deparse(substitute(s_opts))
   opts_form <- substr(obt_opts, 6, nchar(obt_opts) - 1)
-  if (nchar(opts_form) > 0) 
-    s_formula <- paste(c(s_formula, opts_form), collapse = ", ")
-  constraints <- constraints[names(constraints) %in% 
+  acons <- acons[names(acons) %in% 
     methods::formalArgs(build_constraints)]
-  constraints$nvars <- p
-  Cmat <- do.call(build_constraints, constraints)
+  acons$nvars <- p
+  Cmat <- do.call(build_constraints, acons)
   attributes(Xmat) <- c(attributes(Xmat), 
     list(term = term, nterms = ncol(Xmat), label = label, 
-    opt_formula = s_formula, Cmat = Cmat))
+    fcons = fcons, s_formula = opts_form, Cmat = Cmat))
   return(Xmat)
+}
+
+#' @describeIn g Additional smooth terms
+#'
+#' @param x Covariate on which the smooth is applied.
+s <- function(x, fcons = NULL, s_opts = list()){
+  cl <- match.call()
+  if (!is.null(fcons)){ 
+    fcons <- match.arg(fcons, c("inc", "dec", "cvx", "ccv", 
+      "inccvx", "deccvx", "incccv", "decccv"))
+  }
+  obt_opts <- deparse(substitute(s_opts))
+  opts_form <- substr(obt_opts, 6, nchar(obt_opts) - 1)
+  attributes(x) <- c(attributes(x),
+    list(fcons = fcons, s_formula = opts_form, label = deparse(cl$x)))
+  return(x)
 }
 
 #' Common constraints
@@ -67,7 +82,7 @@ g <- function(..., label = term[1], constraints = list(), bs = "tp",
 #'
 #' @export
 build_constraints <- function(nvars, monotone = 0, sign.const = 0, 
-  first.const = 1)
+  first.const = 0)
 {
   p <- length(nvars)
   monotone <- rep_len(monotone, p)
