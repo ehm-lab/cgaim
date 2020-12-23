@@ -55,8 +55,7 @@ test_that("monotonicity constraints on alpha work", {
 
 #----- Sign constraints
 # Single-index
-ans1 <- cgaim(y ~ g(x1, x2, acons = list(sign.const = 1)), 
-  data = df1)
+
 ans2 <- cgaim(y ~ g(x1, x2, acons = list(sign.const = -1)), 
   data = df1)
 # Two-index

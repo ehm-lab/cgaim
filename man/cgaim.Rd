@@ -4,17 +4,9 @@
 \alias{cgaim}
 \title{Constrained groupwise additive index models}
 \usage{
-cgaim(
-  formula,
-  data,
-  weights,
-  na.action,
-  smooth_method = c("scam", "cgam", "scar"),
-  smooth.control = list(),
-  alpha.control = list(),
-  algo.control = list(),
-  keep.trace = F
-)
+cgaim(formula, data, weights, na.action, smooth_method = c("scam", "cgam",
+  "scar"), smooth.control = list(), alpha.control = list(),
+  algo.control = list(), keep.trace = F)
 }
 \arguments{
 \item{formula}{A CGAIM formula with index terms \code{\link{g}}, 
@@ -113,8 +105,8 @@ A \code{cgaim} object, i.e. a list with components:
    Useful for prediction.}
 }
 \description{
-Fits a constrained groupwise additive index model (CGAIM) through
- alternative sequential quadratic programming steps.
+Fits a constrained groupwise additive index model (CGAIM) through alternative 
+sequential quadratic programming steps.
 }
 \seealso{
 \code{\link{confint.cgaim}} for confidence interval,

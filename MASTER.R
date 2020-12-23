@@ -42,7 +42,8 @@ usethis::use_package("graphics")
 usethis::use_package("methods")
 usethis::use_package("stats")
 usethis::use_package("MASS")
-usethis::use_package("cgam")
+usethis::use_package("mgcv")
+usethis::use_package("gratia")
 
 # CMD check
 devtools::check()

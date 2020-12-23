@@ -1,3 +1,8 @@
+## 0.2.01
+
+### Changes
+- Now uses `mgcv::gam` instead of `scam` when no smoothing constraints are given. Doesn't apply to `scar` and `cgam` yet.
+
 ## 0.2.0
 
 ### New features

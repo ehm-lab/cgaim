@@ -6,8 +6,8 @@
 
 #' Constrained groupwise additive index models
 #'
-#' Fits a constrained groupwise additive index model (CGAIM) through
-#'  alternative sequential quadratic programming steps.
+#' Fits a constrained groupwise additive index model (CGAIM) through alternative 
+#' sequential quadratic programming steps.
 #'
 #' @param formula A CGAIM formula with index terms \code{\link{g}}, 
 #'    smooth terms \code{\link{s}} and linear terms. 
@@ -101,9 +101,8 @@
 #'
 #' @export
 cgaim <- function(formula, data, weights, na.action, 
-  smooth_method = c("scam", "cgam", "scar"), 
-  smooth.control = list(), alpha.control = list(), algo.control = list(), 
-  keep.trace = F)
+  smooth_method = c("scam", "cgam", "scar"), smooth.control = list(), 
+  alpha.control = list(), algo.control = list(), keep.trace = F) 
 {
   mt <- stats::terms(formula, specials = c("g", "s"), data = data)
   allvars <- all.vars(formula)

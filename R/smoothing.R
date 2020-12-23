@@ -80,7 +80,15 @@ smooth_scam <- function(x, y, formula, Xcov, ...)
   p <- ncol(scam_data)
   n <- nrow(scam_data)
   scam_data[attr(y, "varname")] <- y
-  gfit <- scam::scam(formula, data = scam_data, ...)
+  iscons <- any(sapply(scam_lookup, grepl, as.character(formula)[3]))
+  if (iscons){
+    gfit <- scam::scam(formula, data = scam_data, ...)
+    # print("scam"); flush.console()
+  } else {
+    gfit <- mgcv::gam(formula, data = scam_data, ...)
+    derivs <- gratia::fderiv(gfit, newdata = scam_data)
+    # print("gam"); flush.console()
+  }
   # Extract estimated terms
   gxp <- stats::predict(gfit, type = "terms", se.fit = T)
   gx <- gxp$fit
@@ -88,14 +96,18 @@ smooth_scam <- function(x, y, formula, Xcov, ...)
   colnames(gx) <- colnames(segx) <- gsub("s\\(|\\)", "", colnames(gx))
   gx <- gx[,match(colnames(scam_data)[1:p], colnames(gx)), drop = FALSE]
   segx <- segx[,match(colnames(scam_data)[1:p], colnames(segx)), drop = FALSE]
-  # Estimate first derivative 
-  smterms <- attr(stats::terms(formula, specials = "s"),
-    "specials")$s - 1
+  # Estimate first derivative
+  trms <- stats::terms(formula, specials = "s") 
+  smterms <- attr(trms, "specials")$s - 1
   dgx <- matrix(0, n, p)
   for (j in 1:p){
     jind <- which(all.vars(formula)[-1] == names(scam_data)[j])
     if (jind %in% smterms){
-      dgx[,j] <- scam::derivative.scam(gfit, jind)$d
+      if (iscons){
+        dgx[,j] <- scam::derivative.scam(gfit, jind)$d
+      } else {
+        dgx[,j] <- derivs$derivatives[[which(smterms == jind)]]$deriv
+      }
     } else {
       if (is.numeric(scam_data[j])){
         dgx[,j] <- stats::coef(gfit)[names(scam_data)[j]]
