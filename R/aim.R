@@ -8,24 +8,7 @@
 #'
 #' Fits a constrained groupwise additive index model (CGAIM) through alternative 
 #' sequential quadratic programming steps.
-#'
-#' @param formula A CGAIM formula with index terms \code{\link{g}}, 
-#'    smooth terms \code{\link{s}} and linear terms. 
-#' @param data A data.frame containing the variables of the model.    
-#' @param weights A vector of optional weights for observations. If \code{NULL}, unit weights are considered.
-#' @param na.action A function indicating what treatment applying to NAs. If
-#'    missing the default is set by the \code{na.action} setting of \code{options}. See
-#'    \code{\link[stats]{na.fail}}.
-#' @param smooth_method The shape constrained smoothing method to consider. The default is \code{\link[scam]{scam}}, but other options are \code{\link[cgam]{cgam}} and \code{\link[scar]{scar}}. See details.
-#' @param smooth.control A list containing parameters for the shape-contrained smoothing function given passed to \code{smooth_method}. See help of the functions for the list of parameters.
-#' @param alpha.control A list containing the controlling parameters for the
-#'    alpha optimization steps of the algorithm. See \code{\link{alpha.setup}}.
-#' @param algo.control A list containing controlling parameters for the
-#'    whole algorithm. See \code{\link{algo.setup}}.
-#' @param keep.trace Logical. If TRUE, the result contains a 'trace' element
-#'    giving the intermediate values of alpha coefficients and ridge functions
-#'    at each step of the algorithm. Useful for behaviour tracking.
-#'
+#' 
 #' The CGAIM is expressed 
 #'  \deqn{y_{i} = \beta_{0} + \sum_{j} \beta_{j} g_{j}(\alpha_{j}^{T} x_{ij})
 #'    + \sum_{k} \gamma_{k} f_{k}(x_{ik}) + e_{i}}
@@ -51,6 +34,23 @@
 #'  made through the parameter \code{alpha.control}. See \code{\link{alpha.setup}}
 #'  for the detail.
 #'
+#' @param formula A CGAIM formula with index terms \code{\link{g}}, 
+#'    smooth terms \code{\link{s}} and linear terms. 
+#' @param data A data.frame containing the variables of the model.    
+#' @param weights A vector of optional weights for observations. If \code{NULL}, unit weights are considered.
+#' @param na.action A function indicating what treatment applying to NAs. If
+#'    missing the default is set by the \code{na.action} setting of \code{options}. See
+#'    \code{\link[stats]{na.fail}}.
+#' @param smooth_method The shape constrained smoothing method to consider. The default is \code{\link[scam]{scam}}, but other options are \code{\link[cgam]{cgam}} and \code{\link[scar]{scar}}. See details.
+#' @param smooth.control A list containing parameters for the shape-contrained smoothing function given passed to \code{smooth_method}. See help of the functions for the list of parameters.
+#' @param alpha.control A list containing the controlling parameters for the
+#'    alpha optimization steps of the algorithm. See \code{\link{alpha.setup}}.
+#' @param algo.control A list containing controlling parameters for the
+#'    whole algorithm. See \code{\link{algo.setup}}.
+#' @param keep.trace Logical. If TRUE, the result contains a 'trace' element
+#'    giving the intermediate values of alpha coefficients and ridge functions
+#'    at each step of the algorithm. Useful for behaviour tracking.
+#'
 #' @return A \code{cgaim} object, i.e. a list with components:
 #'  \item{alpha}{A named list of index coefficients.}
 #'  \item{gfit}{A matrix containing the ridge and smooth functions 
@@ -64,13 +64,6 @@
 #'    element \code{x} belong.}
 #'  \item{fitted}{A vector of fitted y values.}
 #'  \item{residuals}{A vector of residuals.}
-#'  \item{avcov}{The covariance matrix of alpha coefficients. Naively 
-#'    computed from the last step of the algorithm. STILL EXPERIMENTAL.}
-#'  \item{bvcov}{The covariance matrix of beta coefficients. 
-#'    Computed from the design matrix created by ridge and smooth functions.
-#'    STILL EXPERIMENTAL.}
-#'  \item{gse}{Standard errors of ridge and smooth functions. Only
-#'    available when \code{smooth_method = 'scam'}.}
 #'  \item{rss}{The residual sum of squares of the fit.}
 #'  \item{flag}{A flag indicating how the algorithm stopped. 1 for proper 
 #'    convergence, 2 when the algorithm stopped for lack of step in the
@@ -318,26 +311,10 @@ gaim_gn <- function(x, y, w, index,
   betas <- attr(final.gz, "scaled:scale")
   r <- y - yhat
   sig2 <- sum(r^2) / (n - d)
-  # Parameter covar matrix
-  Vmat <- x * gz$dgz[,index]
-  vtv <- crossprod(Vmat)
-  avcov <- try(chol2inv(chol(vtv)), silent = TRUE)
-  if (!inherits(avcov, "try-error")){
-    avcov <- avcov * sig2
-    colnames(avcov) <- rownames(avcov) <- 
-      paste(names(index), colnames(x), sep = ".")
-  } else {
-    avcov <- NULL
-  }
-  bvtv <- crossprod(cbind(1, final.gz))
-  bvcov <- try(chol2inv(chol(bvtv)), silent = TRUE)
-  if (inherits(bvcov, "try-error")){
-    bvcov <- NULL
-  }
   output <- list(alpha = alpha, gfit = final.gz, indexfit = zs, 
     beta = c(gz$intercept + sum(attr(final.gz, "scaled:center")), betas),
-    index = index, fitted = yhat, residuals = r, avcov = avcov, bvcov = bvcov,
-    gse = gz$se, rss = l2, flag = stopflag, niter = c1)
+    index = index, fitted = yhat, residuals = r, rss = l2, flag = stopflag, 
+    niter = c1)
   if (keep.trace){
     if (convergence_criterion == "change"){
       colnames(trace.list$criterion) <- c("rss", "alpha")

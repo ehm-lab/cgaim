@@ -1,3 +1,12 @@
+## 0.2.02
+
+### Changes
+- Restricted the computation of confidence intervals to percentile bootstrap. The others need a proper implementation.
+
+### Bug fixes
+- Removed the computation of all standard errors from the main function `cgaim`. They were half-baked and caused more problems than were useful.
+- Fixed issues on the documentation
+
 ## 0.2.01
 
 ### Changes

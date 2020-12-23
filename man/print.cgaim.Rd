@@ -10,11 +10,12 @@
 \item{x}{A \code{cgaim} object.}
 
 \item{...}{For compatibility with the default \code{print} method. Unused
-   at the moment.
-
-Conveniently prints the formula, \code{beta} and \code{alpha} coefficients
-   as well as the residual sum of squares.}
+at the moment.}
 }
 \description{
 Default method to print the result from a call to \code{cgaim}.
+}
+\details{
+Conveniently prints the formula, \code{beta} and \code{alpha} coefficients
+   as well as the residual sum of squares.
 }

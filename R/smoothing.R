@@ -1,22 +1,3 @@
-#-----------------------------------
-# cgaim specific functions
-#-----------------------------------
-
-bspl <- function(x, knots = NULL, df = 10, ord = 4, intercept = FALSE)
-{
-  rng <- range(x)
-  if (is.null(knots)){
-    nk <- df - ord + 1
-    dk <- diff(rng) / nk
-    knots <- seq(rng[1] - dk * (ord - 1), rng[2] + dk * (ord - 1), by = dk)
-  }
-  bsmat <- splines::splineDesign(knots = knots, x = x, ord = ord, 
-    outer.ok = TRUE)
-  if (!intercept){
-    bsmat <- bsmat[,-1]
-  }
-  return(bsmat)
-}
 
 
 #-----------------------------------
@@ -90,12 +71,9 @@ smooth_scam <- function(x, y, formula, Xcov, ...)
     # print("gam"); flush.console()
   }
   # Extract estimated terms
-  gxp <- stats::predict(gfit, type = "terms", se.fit = T)
-  gx <- gxp$fit
-  segx <- gxp$se.fit
-  colnames(gx) <- colnames(segx) <- gsub("s\\(|\\)", "", colnames(gx))
+  gx <- stats::predict(gfit, type = "terms")
+  colnames(gx) <- gsub("s\\(|\\)", "", colnames(gx))
   gx <- gx[,match(colnames(scam_data)[1:p], colnames(gx)), drop = FALSE]
-  segx <- segx[,match(colnames(scam_data)[1:p], colnames(segx)), drop = FALSE]
   # Estimate first derivative
   trms <- stats::terms(formula, specials = "s") 
   smterms <- attr(trms, "specials")$s - 1
@@ -115,7 +93,7 @@ smooth_scam <- function(x, y, formula, Xcov, ...)
     }
   }
   beta0 <- stats::coef(gfit)[1]
-  return(list(intercept = beta0, gz = gx, dgz = dgx, se = segx))
+  return(list(intercept = beta0, gz = gx, dgz = dgx))
 }
 
 #-----------------------------------
@@ -256,5 +234,5 @@ smooth_cgam <- function(x, y, formula, Xcov, ...){
   colnames(dgx) <- c(gfit$xnms, gfit$znms)
   dgx <- dgx[,c(whichinds, setdiff(seq_len(ncol(preds)), whichinds)), drop = FALSE]
   beta0 <- gfit$coef[1]
-  return(list(intercept = beta0, gz = gx, dgz = dgx, se = NULL))
+  return(list(intercept = beta0, gz = gx, dgz = dgx))
 }

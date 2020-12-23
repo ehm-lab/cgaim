@@ -31,33 +31,8 @@ alpha optimization steps of the algorithm. See \code{\link{alpha.setup}}.}
 whole algorithm. See \code{\link{algo.setup}}.}
 
 \item{keep.trace}{Logical. If TRUE, the result contains a 'trace' element
-   giving the intermediate values of alpha coefficients and ridge functions
-   at each step of the algorithm. Useful for behaviour tracking.
-
-The CGAIM is expressed 
- \deqn{y_{i} = \beta_{0} + \sum_{j} \beta_{j} g_{j}(\alpha_{j}^{T} x_{ij})
-   + \sum_{k} \gamma_{k} f_{k}(x_{ik}) + e_{i}}
- The formula interface considers \code{\link{g}} to identify index terms,
-  \code{\link{s}} for smooth functions and can also include 
-   linear terms. All smooth terms can be
-   shape constrained.
-
-The CGAIM allows for linear constraints on the alpha coefficients. 
- Common constraints can be given for each index through the 
- \code{\link{g}} terms in the formula. Custom constraints, including multi-index constraints can be passed as a matrix through \code{alpha.control$Cmat}. See 
- \code{\link{alpha.setup}}.
-
-The CGAIM is fitted through an iterative algorithm that alternates between
- estimating the ridge functions \eqn{g_{j}} (and other non-index terms) and 
- updating the coefficients \eqn{\alpha_{j}}. The smoothing of ridge functions
- currently supports three methods: \code{\link[scam]{scam}} (the default), \code{\link[cgam]{cgam}} and \code{\link[scar]{scar}}. The list \code{smooth.control} allows controlling the functions.
-
-Updating the coefficient is made through quadratic programming. Currently,
- it is carried out by either the function 
- \code{\link[osqp:solve_osqp]{solve_osqp}} or 
- \code{\link[quadprog:solve.QP]{solve.QP}}. Controlling the updates is
- made through the parameter \code{alpha.control}. See \code{\link{alpha.setup}}
- for the detail.}
+giving the intermediate values of alpha coefficients and ridge functions
+at each step of the algorithm. Useful for behaviour tracking.}
 }
 \value{
 A \code{cgaim} object, i.e. a list with components:
@@ -73,13 +48,6 @@ A \code{cgaim} object, i.e. a list with components:
    element \code{x} belong.}
  \item{fitted}{A vector of fitted y values.}
  \item{residuals}{A vector of residuals.}
- \item{avcov}{The covariance matrix of alpha coefficients. Naively 
-   computed from the last step of the algorithm. STILL EXPERIMENTAL.}
- \item{bvcov}{The covariance matrix of beta coefficients. 
-   Computed from the design matrix created by ridge and smooth functions.
-   STILL EXPERIMENTAL.}
- \item{gse}{Standard errors of ridge and smooth functions. Only
-   available when \code{smooth_method = 'scam'}.}
  \item{rss}{The residual sum of squares of the fit.}
  \item{flag}{A flag indicating how the algorithm stopped. 1 for proper 
    convergence, 2 when the algorithm stopped for lack of step in the
@@ -107,6 +75,32 @@ A \code{cgaim} object, i.e. a list with components:
 \description{
 Fits a constrained groupwise additive index model (CGAIM) through alternative 
 sequential quadratic programming steps.
+}
+\details{
+The CGAIM is expressed 
+ \deqn{y_{i} = \beta_{0} + \sum_{j} \beta_{j} g_{j}(\alpha_{j}^{T} x_{ij})
+   + \sum_{k} \gamma_{k} f_{k}(x_{ik}) + e_{i}}
+ The formula interface considers \code{\link{g}} to identify index terms,
+  \code{\link{s}} for smooth functions and can also include 
+   linear terms. All smooth terms can be
+   shape constrained.
+
+The CGAIM allows for linear constraints on the alpha coefficients. 
+ Common constraints can be given for each index through the 
+ \code{\link{g}} terms in the formula. Custom constraints, including multi-index constraints can be passed as a matrix through \code{alpha.control$Cmat}. See 
+ \code{\link{alpha.setup}}.
+
+The CGAIM is fitted through an iterative algorithm that alternates between
+ estimating the ridge functions \eqn{g_{j}} (and other non-index terms) and 
+ updating the coefficients \eqn{\alpha_{j}}. The smoothing of ridge functions
+ currently supports three methods: \code{\link[scam]{scam}} (the default), \code{\link[cgam]{cgam}} and \code{\link[scar]{scar}}. The list \code{smooth.control} allows controlling the functions.
+
+Updating the coefficient is made through quadratic programming. Currently,
+ it is carried out by either the function 
+ \code{\link[osqp:solve_osqp]{solve_osqp}} or 
+ \code{\link[quadprog:solve.QP]{solve.QP}}. Controlling the updates is
+ made through the parameter \code{alpha.control}. See \code{\link{alpha.setup}}
+ for the detail.
 }
 \seealso{
 \code{\link{confint.cgaim}} for confidence interval,

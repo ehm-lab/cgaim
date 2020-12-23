@@ -4,8 +4,8 @@
 \alias{confint.cgaim}
 \title{Confidence intervals}
 \usage{
-\method{confint}{cgaim}(object, parm, level = 0.95, type = c("normal",
-  "boot.pct", "boot.t", "boot.bca"), boot.type = c("residuals", "pairs"),
+\method{confint}{cgaim}(object, parm, level = 0.95, type = c("boot.pct",
+  "boot.t", "boot.bca", "normal"), boot.type = c("residuals", "pairs"),
   bsamples = NULL, B = 100, l = 1, m = 20, applyFun = c("lapply",
   "mclapply", "parLapply"), cl = NULL, ...)
 }
@@ -25,7 +25,8 @@ based on normal approximation. The others are all based on bootstrap.
 \code{"boot.pct"} computes intervals as percentiles of the bootstrap
 distribution. \code{"boot.t"} computes studentized bootstrap intervals.
 \code{"boot.bca"} (still experimental, use at your own risk) computes bias-corrected and accelerated bootstrap
-intervals. Can include several types.}
+intervals. Can include several types.
+CURRENTLY, ONLY "boot.pct" WORKS}
 
 \item{boot.type}{Character indicating the type of resampling for bootstrap.
 If \code{boot.type = "residuals"} (the default), residuals are
@@ -54,20 +55,7 @@ bootstrap sample. Used to parallelize computation. Note that
 \code{applyFun = "parLapply"}. See \code{\link[parallel]{parLapply}}.}
 
 \item{...}{Additional parameters to be passed to the parallel function. See
-   \code{\link[parallel]{mclapply}} or \code{\link[parallel]{parLapply}}.
-
-Computes confidence intervals for the parameters of \code{object}. The
-   \code{"normal"} confidence intervals are based on the covariance matrices
-   returned by \code{cgaim}. Note that these are rough estimates. 
-   
-Several types of bootstrap confidence intervals can be computed, based on
-   extensive theory on the subject. Note however that this is computationally
-   intensive. For quicker execution, pass \code{type = "normal"} only to
-   prevent the function from computing bootstrap samples.   
-
-Note that only \code{"normal"} confidence intervals are available for
-   the ridge functions yet. However, they match the bayesian intervals 
-   developed for GAM and SCAM.}
+\code{\link[parallel]{mclapply}} or \code{\link[parallel]{parLapply}}.}
 }
 \value{
 A named list with elements \code{alpha}, \code{beta} and \code{g}.

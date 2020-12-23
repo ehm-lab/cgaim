@@ -25,8 +25,14 @@ df2 <- data.frame(y, x1, x2, x3, x4)
 #----------------------------
 # Test models without constraints
 #----------------------------
-ans <- cgaim(y ~ g(x1, x2), data = df1) 
+ans <- cgaim(y ~ g(x1, x2), data = df1)
+cia <- confint(ans, B = 10)
+plot(ans, ci = cia)
+
 ans <- cgaim(y ~ g(x1, x2) + g(x3, x4), data = df2)
+cia <- confint(ans, B = 10)
+plot(ans, ci = cia, select = 2)
+
 
 #----------------------------
 # Test alpha constraints

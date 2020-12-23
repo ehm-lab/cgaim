@@ -25,10 +25,7 @@ when \code{type = "terms"} or \code{type = "indices"}.}
 when \code{newdata} is not missing.}
 
 \item{...}{For compatibility with the default \code{predict} method. Unused
-   at the moment.
-
-When \code{newdata} is provided, it must contain all variables used in
-   the fitted model.}
+at the moment.}
 }
 \value{
 When \code{type = "response"} returns a vector of predicted response.
@@ -40,4 +37,8 @@ When \code{type = "response"} returns a vector of predicted response.
 Uses a fitted \code{cgaim} object and computes prediction for the
    observed data or new data. Predicts the response, indices or 
    ridge functions values at the provided data.
+}
+\details{
+When \code{newdata} is provided, it must contain all variables used in
+   the fitted model.
 }

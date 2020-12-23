@@ -4,8 +4,8 @@
 \alias{plot.cgaim}
 \title{Plot CGAIM terms}
 \usage{
-\method{plot}{cgaim}(x, select = NULL, ci = NULL, ci.type = c("normal",
-  "boot.pct", "boot.t", "boot.bca"), ci.plot = c("polygon", "lines"),
+\method{plot}{cgaim}(x, select = NULL, ci = NULL, ci.type = c("boot.pct",
+  "normal", "boot.t", "boot.bca"), ci.plot = c("polygon", "lines"),
   ci.args = list(), ...)
 }
 \arguments{
@@ -14,11 +14,11 @@
 \item{select}{A numeric or character vector indicating which terms
 to plot.}
 
-\item{ci}{An object returned by a call to \code{link{confint.cgaim}}. If
+\item{ci}{An object returned by a call to \code{\link{confint.cgaim}}. If
 \code{NULL}, no confidence interval is drawn.}
 
 \item{ci.type}{When \code{ci} is not \code{NULL}, which confidence interval
-to plot. See \code{link{confint.cgaim}} for the different types. For now,
+to plot. See \code{\link{confint.cgaim}} for the different types. For now,
 only normal confidence intervals work.}
 
 \item{ci.plot}{Whether to plot the confidence intervals as shaded areas
@@ -29,12 +29,13 @@ to draw confidence interval. Either \code{\link[graphics]{polygon}} or
 \code{\link[graphics]{lines}}.}
 
 \item{...}{Additional graphical parameters for the drawn function. See
-   \code{link[graphics]{par}}.
-
-At the moment, only plots ridge and smooth functions. When several terms
-   are plotted, waits for user response before displaying the next one.}
+\code{\link[graphics]{par}}.}
 }
 \description{
 Plot method for the ridge and smooth terms of a \code{cgaim} object. If
    provided, may also plot confidence intervals.
+}
+\details{
+At the moment, only plots ridge and smooth functions. When several terms
+   are plotted, waits for user response before displaying the next one.
 }

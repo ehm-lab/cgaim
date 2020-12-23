@@ -1,7 +1,7 @@
 #' Confidence intervals
 #'
 #' Computes confidence intervals for the CGAIM parameters.
-#'
+#'    
 #' @param object A \code{cgaim} object.
 #' @param parm A numeric or character vector indicating the terms for which
 #'    to compute the confidence intervals. Indicates only indices and 
@@ -15,6 +15,7 @@
 #'    distribution. \code{"boot.t"} computes studentized bootstrap intervals.
 #'    \code{"boot.bca"} (still experimental, use at your own risk) computes bias-corrected and accelerated bootstrap
 #'    intervals. Can include several types.
+#'    CURRENTLY, ONLY "boot.pct" WORKS
 #' @param boot.type Character indicating the type of resampling for bootstrap.
 #'    If \code{boot.type = "residuals"} (the default), residuals are
 #'    resampled and added to fitted valued to create a new bootstrapped 
@@ -37,19 +38,6 @@
 #' @param ... Additional parameters to be passed to the parallel function. See
 #'    \code{\link[parallel]{mclapply}} or \code{\link[parallel]{parLapply}}.
 #'
-#' Computes confidence intervals for the parameters of \code{object}. The
-#'    \code{"normal"} confidence intervals are based on the covariance matrices
-#'    returned by \code{cgaim}. Note that these are rough estimates. 
-#'    
-#' Several types of bootstrap confidence intervals can be computed, based on
-#'    extensive theory on the subject. Note however that this is computationally
-#'    intensive. For quicker execution, pass \code{type = "normal"} only to
-#'    prevent the function from computing bootstrap samples.   
-#'
-#' Note that only \code{"normal"} confidence intervals are available for
-#'    the ridge functions yet. However, they match the bayesian intervals 
-#'    developed for GAM and SCAM.
-#'
 #' @return A named list with elements \code{alpha}, \code{beta} and \code{g}.
 #'    Each is a list containing as elements the different types of 
 #'    intervals given in \code{type}. In addition, contains the generated
@@ -69,7 +57,7 @@
 #'
 #' @export
 confint.cgaim <- function(object, parm, level = 0.95, 
-  type = c("normal", "boot.pct", "boot.t", "boot.bca"), 
+  type = c("boot.pct", "boot.t", "boot.bca", "normal"), 
   boot.type = c("residuals", "pairs"), bsamples = NULL, B = 100, l = 1,
   m = 20, applyFun = c("lapply", "mclapply", "parLapply"), cl = NULL, ...)
 {
@@ -93,33 +81,33 @@ confint.cgaim <- function(object, parm, level = 0.95,
   level.labels <- sprintf("%s%%", alims * 100)
   dvec <- which(object$index %in% aparm)
   alphas <- unlist(object$alpha[aparm])
-  ses <- diag(object$avcov)[dvec]
+  # ses <- diag(object$avcov)[dvec]
   betas <- object$beta[parm + 1]
-  bses <- diag(object$bvcov)[parm + 1]
+  # bses <- diag(object$bvcov)[parm + 1]
   gs <- object$gfit[,parm, drop = FALSE]
-  gses <- object$gse[,parm, drop = FALSE]
+  # gses <- object$gse[,parm, drop = FALSE]
   alphaCI <- list()
   betaCI <- list()
   gCI <- list()
-  if ("normal" %in% type){
-    tlims <- stats::qt(alims, n - d - p)
-    conflims <- sapply(ses, "*", tlims)
-    alphaCI$normal <- t(matrix(alphas, 2, length(dvec), byrow = TRUE) + conflims)
-    conflims <- sapply(bses, "*", tlims)
-    betaCI$normal <- t(matrix(betas, 2, length(parm), byrow = TRUE) + conflims)
-    colnames(alphaCI$normal) <- colnames(betaCI$normal) <- level.labels
-    rownames(betaCI$normal) <- names(betas)
-    if (object$algo.control$smooth_method == "scam"){      
-      gCI$normal <- array(0, c(n, length(parm), 2), 
-        dimnames = list(rownames(gs), colnames(gs), level.labels))
-      for (j in 1:length(parm)){
-        gconf <- t(sapply(gses[,j], "*", tlims))
-        gCI$normal[,j,] <- apply(gconf, 2, "+", gs[,j])
-      }
-    } else {
-      warning("Cannot provide confidence interval for ridge functions with the chosen smoothing method")
-    }
-  } 
+  # if ("normal" %in% type){
+  #   tlims <- stats::qt(alims, n - d - p)
+  #   conflims <- sapply(ses, "*", tlims)
+  #   alphaCI$normal <- t(matrix(alphas, 2, length(dvec), byrow = TRUE) + conflims)
+  #   conflims <- sapply(bses, "*", tlims)
+  #   betaCI$normal <- t(matrix(betas, 2, length(parm), byrow = TRUE) + conflims)
+  #   colnames(alphaCI$normal) <- colnames(betaCI$normal) <- level.labels
+  #   rownames(betaCI$normal) <- names(betas)
+  #   if (object$algo.control$smooth_method == "scam"){      
+  #     gCI$normal <- array(0, c(n, length(parm), 2), 
+  #       dimnames = list(rownames(gs), colnames(gs), level.labels))
+  #     for (j in 1:length(parm)){
+  #       gconf <- t(sapply(gses[,j], "*", tlims))
+  #       gCI$normal[,j,] <- apply(gconf, 2, "+", gs[,j])
+  #     }
+  #   } else {
+  #     warning("Cannot provide confidence interval for ridge functions with the chosen smoothing method")
+  #   }
+  # } 
   if (any(c("boot.pct", "boot.bca", "boot.t") %in% type)){
     boot.type <- match.arg(boot.type)
     applyFun <- match.arg(applyFun)
@@ -143,8 +131,7 @@ confint.cgaim <- function(object, parm, level = 0.95,
       pars$y <- object$fitted + object$residuals[b]
       attributes(pars$y) <- attributes(object$y)
       resb <- do.call("gaim_gn", pars)
-      list(resb$alpha[dvec], diag(resb$avcov)[dvec], resb$beta[parm + 1], 
-        diag(resb$bvcov)[parm + 1], resb$gfit[,parm], resb$gse[,parm])
+      list(resb$alpha[dvec], resb$beta[parm + 1], resb$gfit[,parm])
     }
     bootPairs <- function(b, object, pars){
       pars$y <- object$y[b]
@@ -155,8 +142,7 @@ confint.cgaim <- function(object, parm, level = 0.95,
       }
       pars$w <- object$w[b]
       resb <- do.call("gaim_gn", pars)
-      list(resb$alpha[dvec], diag(resb$avcov)[dvec], resb$beta[parm + 1], 
-        diag(resb$bvcov)[parm], resb$gfit[,parm], resb$gse[,parm])
+      list(resb$alpha[dvec], resb$beta[parm + 1], resb$gfit[,parm])
     }   
     bootFun <- ifelse(boot.type == "pairs", bootPairs, bootRes)
     resb <- switch(applyFun,
@@ -174,14 +160,14 @@ confint.cgaim <- function(object, parm, level = 0.95,
     )
     alphab <- sapply(resb, "[[", 1)
     rownames(alphab) <- names(alphas)
-    seb <- sapply(resb, "[[", 2)
-    betab <- sapply(resb, "[[", 3)
-    sebb <- sapply(resb, "[[", 4)
-#    gb <- sapply(resb, "[[", 5, simplify = "array")
+    # seb <- sapply(resb, "[[", 2)
+    betab <- sapply(resb, "[[", 2)
+    # sebb <- sapply(resb, "[[", 4)
+    gb <- sapply(resb, "[[", 3, simplify = "array")
 #    gesb <- sapply(resb, "[[", 6, simplify = "array")
     if (length(parm) == 1){ 
       betab <- t(as.matrix(betab))
-#      gb <- array(gb, c(n, 1, B))
+      gb <- array(gb, c(n, 1, B))
 #      gesb <- array(gesb, c(n, 1, B))
     }
     rownames(betab) <- names(betas)
@@ -190,83 +176,83 @@ confint.cgaim <- function(object, parm, level = 0.95,
         alims, na.rm = TRUE))
       betaCI$boot.pct <- t(apply(betab, 1, stats::quantile, 
         alims, na.rm = TRUE))
-#      gCI$boot.pct <- apply(gb, 1:2, quantile, alims, na.rm = TRUE)
-#      gCI$boot.pct <- aperm(gCI$boot.pct, c(2,3,1))
+      gCI$boot.pct <- apply(gb, 1:2, quantile, alims, na.rm = TRUE)
+      gCI$boot.pct <- aperm(gCI$boot.pct, c(2,3,1))
     } 
-    if ("boot.t" %in% type){
-      tb <- (alphab - matrix(alphas, d, B)) / seb
-      tpct <- apply(tb, 1, stats::quantile, alims, na.rm = TRUE)
-      alphaCI$boot.t <- t(matrix(alphas, 2, d, byrow = TRUE) + 
-        (tpct * matrix(ses, 2, d, byrow = TRUE)))
-      alphaCI$boot.t <- alphaCI$boot.t[,2:1]
-      colnames(alphaCI$boot.t) <- level.labels
-      tbb <- (betab - matrix(betas, length(parm), B)) / sebb
-      tbpct <- apply(tbb, 1, stats::quantile, alims, na.rm = TRUE)
-      betaCI$boot.t <- t(matrix(betas, 2, length(parm), byrow = TRUE) + 
-        (tbpct * matrix(bses, 2, length(parm), byrow = TRUE)))
-      betaCI$boot.t <- betaCI$boot.t[,2:1, drop = FALSE]
-      colnames(betaCI$boot.t) <- level.labels
-#      gtb <- gb
-#      for (b in 1:B){
-#        gtb[,,b] <- (gb[,,b] - gs) / gses
-#      }
-#      gCI$boot.t <- aperm(apply(gtb, 1:2, quantile, alims, na.rm = TRUE), c(2,3,1))
-#      gCI$boot.t[,,1] <- (gCI$boot.t[,,1] * gses) + gs
-#      gCI$boot.t[,,2] <- (gCI$boot.t[,,2] * gses) + gs
-    }
-    if ("boot.bca" %in% type){
-      z0 <- mapply(function(tt, t0){stats::qnorm(mean(tt < t0))},
-        as.data.frame(t(alphab)), alphas)
-      z0b <- mapply(function(tt, t0){stats::qnorm(mean(tt < t0))},
-        as.data.frame(t(betab)), betas)
-      jksamps <- split(1:n, sort(rep_len(1:m,n)))
-      jksamps <- lapply(jksamps, function(ij) setdiff(1:n, ij))
-      resjk <- switch(applyFun,
-        lapply = lapply(jksamps, bootPairs, 
-          object = object, pars = pars)      ,
-        mclapply = parallel::mclapply(jksamps, bootPairs, 
-          object = object, pars = pars, ...),
-        parLapply = parallel::parLapply(cl, jksamps, bootPairs, 
-          object = object, pars = pars, ...)
-      )      
-      alphamat <- sapply(resjk, "[[", 1)
-      betamat <- sapply(resjk, "[[", 3)
-      if (length(parm) == 1) betamat <- t(as.matrix(betamat))
-      a <- apply(alphamat, 1, function(u){
-        t. <- (mean(u) - u) * (m - 1)
-        (1/6) * sum(t.^3)/(sum(t.^2))^1.5
-      })
-      ab <- apply(betamat, 1, function(u){
-        t. <- (mean(u) - u) * (m - 1)
-        (1/6) * sum(t.^3)/(sum(t.^2))^1.5
-      })
-      bca <- sapply(alims, function(lev){
-        za <- stats::qnorm(lev)
-        correc <- z0 + (z0 + za) / 
-          (1 - a * (z0 + za))
-        indB <- trunc(stats::pnorm(correc) * B)
-        indB <- pmin(pmax(indB, 1), B)
-        lim <- mapply(function(x, i) sort(x)[i], 
-          as.data.frame(t(alphab)), indB)
-      })
-      bbca <- sapply(alims, function(lev){
-        za <- stats::qnorm(lev)
-        correc <- z0b + (z0b + za) / 
-          (1 - ab * (z0b + za))
-        indB <- trunc(stats::pnorm(correc) * B)
-        indB <- pmin(pmax(indB, 1), B)
-        lim <- mapply(function(x, i) sort(x)[i], 
-          as.data.frame(t(betab)), indB)
-      })
-      if (length(parm) == 1) bbca <- t(as.matrix(bbca))
-      colnames(bca) <- colnames(bbca) <- level.labels
-      alphaCI$boot.bca <- bca
-      alphaCI$acceleration <- a
-      alphaCI$bias <- z0
-      betaCI$boot.bca <- bbca
-      betaCI$acceleration <- ab
-      betaCI$bias <- z0b
-    }
+#     if ("boot.t" %in% type){
+#       tb <- (alphab - matrix(alphas, d, B)) / seb
+#       tpct <- apply(tb, 1, stats::quantile, alims, na.rm = TRUE)
+#       alphaCI$boot.t <- t(matrix(alphas, 2, d, byrow = TRUE) + 
+#         (tpct * matrix(ses, 2, d, byrow = TRUE)))
+#       alphaCI$boot.t <- alphaCI$boot.t[,2:1]
+#       colnames(alphaCI$boot.t) <- level.labels
+#       tbb <- (betab - matrix(betas, length(parm), B)) / sebb
+#       tbpct <- apply(tbb, 1, stats::quantile, alims, na.rm = TRUE)
+#       betaCI$boot.t <- t(matrix(betas, 2, length(parm), byrow = TRUE) + 
+#         (tbpct * matrix(bses, 2, length(parm), byrow = TRUE)))
+#       betaCI$boot.t <- betaCI$boot.t[,2:1, drop = FALSE]
+#       colnames(betaCI$boot.t) <- level.labels
+#       gtb <- gb
+#       for (b in 1:B){
+#         gtb[,,b] <- (gb[,,b] - gs) / gses
+#       }
+#       gCI$boot.t <- aperm(apply(gtb, 1:2, quantile, alims, na.rm = TRUE), c(2,3,1))
+#       gCI$boot.t[,,1] <- (gCI$boot.t[,,1] * gses) + gs
+#       gCI$boot.t[,,2] <- (gCI$boot.t[,,2] * gses) + gs
+#     }
+    # if ("boot.bca" %in% type){
+    #   z0 <- mapply(function(tt, t0){stats::qnorm(mean(tt < t0))},
+    #     as.data.frame(t(alphab)), alphas)
+    #   z0b <- mapply(function(tt, t0){stats::qnorm(mean(tt < t0))},
+    #     as.data.frame(t(betab)), betas)
+    #   jksamps <- split(1:n, sort(rep_len(1:m,n)))
+    #   jksamps <- lapply(jksamps, function(ij) setdiff(1:n, ij))
+    #   resjk <- switch(applyFun,
+    #     lapply = lapply(jksamps, bootPairs, 
+    #       object = object, pars = pars)      ,
+    #     mclapply = parallel::mclapply(jksamps, bootPairs, 
+    #       object = object, pars = pars, ...),
+    #     parLapply = parallel::parLapply(cl, jksamps, bootPairs, 
+    #       object = object, pars = pars, ...)
+    #   )      
+    #   alphamat <- sapply(resjk, "[[", 1)
+    #   betamat <- sapply(resjk, "[[", 3)
+    #   if (length(parm) == 1) betamat <- t(as.matrix(betamat))
+    #   a <- apply(alphamat, 1, function(u){
+    #     t. <- (mean(u) - u) * (m - 1)
+    #     (1/6) * sum(t.^3)/(sum(t.^2))^1.5
+    #   })
+    #   ab <- apply(betamat, 1, function(u){
+    #     t. <- (mean(u) - u) * (m - 1)
+    #     (1/6) * sum(t.^3)/(sum(t.^2))^1.5
+    #   })
+    #   bca <- sapply(alims, function(lev){
+    #     za <- stats::qnorm(lev)
+    #     correc <- z0 + (z0 + za) / 
+    #       (1 - a * (z0 + za))
+    #     indB <- trunc(stats::pnorm(correc) * B)
+    #     indB <- pmin(pmax(indB, 1), B)
+    #     lim <- mapply(function(x, i) sort(x)[i], 
+    #       as.data.frame(t(alphab)), indB)
+    #   })
+    #   bbca <- sapply(alims, function(lev){
+    #     za <- stats::qnorm(lev)
+    #     correc <- z0b + (z0b + za) / 
+    #       (1 - ab * (z0b + za))
+    #     indB <- trunc(stats::pnorm(correc) * B)
+    #     indB <- pmin(pmax(indB, 1), B)
+    #     lim <- mapply(function(x, i) sort(x)[i], 
+    #       as.data.frame(t(betab)), indB)
+    #   })
+    #   if (length(parm) == 1) bbca <- t(as.matrix(bbca))
+    #   colnames(bca) <- colnames(bbca) <- level.labels
+    #   alphaCI$boot.bca <- bca
+    #   alphaCI$acceleration <- a
+    #   alphaCI$bias <- z0
+    #   betaCI$boot.bca <- bbca
+    #   betaCI$acceleration <- ab
+    #   betaCI$bias <- z0b
+    # }
     alphaCI$alpha.boot <- t(alphab)
     betaCI$beta.boot <- t(betab)
 #    gCI$g.boot <- gb
@@ -279,12 +265,12 @@ confint.cgaim <- function(object, parm, level = 0.95,
 #'
 #' Default method to print the result from a call to \code{cgaim}.
 #'
+#' Conveniently prints the formula, \code{beta} and \code{alpha} coefficients
+#'    as well as the residual sum of squares.
+#'    
 #' @param x A \code{cgaim} object.
 #' @param ... For compatibility with the default \code{print} method. Unused
 #'    at the moment.
-#'
-#' Conveniently prints the formula, \code{beta} and \code{alpha} coefficients
-#'    as well as the residual sum of squares.
 #'
 #' @export
 print.cgaim <- function(x, ...){
@@ -309,6 +295,9 @@ print.cgaim <- function(x, ...){
 #' Uses a fitted \code{cgaim} object and computes prediction for the
 #'    observed data or new data. Predicts the response, indices or 
 #'    ridge functions values at the provided data.
+#' 
+#' When \code{newdata} is provided, it must contain all variables used in
+#'    the fitted model.
 #'
 #' @param object A \code{gaim} object.
 #' @param newdata A list or data.frame containing the new data to predict.
@@ -323,9 +312,6 @@ print.cgaim <- function(x, ...){
 #'    when \code{newdata} is not missing.
 #' @param ... For compatibility with the default \code{predict} method. Unused
 #'    at the moment.
-#'
-#' When \code{newdata} is provided, it must contain all variables used in
-#'    the fitted model.
 #'
 #' @return When \code{type = "response"} returns a vector of predicted response.
 #'    When \code{type = "terms"} returns a d-column matrix where d is the 
@@ -391,13 +377,16 @@ predict.cgaim <- function(object, newdata,
 #' Plot method for the ridge and smooth terms of a \code{cgaim} object. If
 #'    provided, may also plot confidence intervals.
 #'
+#' At the moment, only plots ridge and smooth functions. When several terms
+#'    are plotted, waits for user response before displaying the next one.
+#'
 #' @param x A \code{cgaim} object.
 #' @param select A numeric or character vector indicating which terms
 #'    to plot.
-#' @param ci An object returned by a call to \code{link{confint.cgaim}}. If
+#' @param ci An object returned by a call to \code{\link{confint.cgaim}}. If
 #'    \code{NULL}, no confidence interval is drawn.
 #' @param ci.type When \code{ci} is not \code{NULL}, which confidence interval
-#'    to plot. See \code{link{confint.cgaim}} for the different types. For now,
+#'    to plot. See \code{\link{confint.cgaim}} for the different types. For now,
 #'    only normal confidence intervals work.
 #' @param ci.plot Whether to plot the confidence intervals as shaded areas
 #'    \code{ci.plot = "polygon"} or as lines \code{ci.plot = "lines"}.
@@ -405,14 +394,11 @@ predict.cgaim <- function(object, newdata,
 #'    to draw confidence interval. Either \code{\link[graphics]{polygon}} or
 #'    \code{\link[graphics]{lines}}.
 #' @param ... Additional graphical parameters for the drawn function. See
-#'    \code{link[graphics]{par}}.
-#'
-#' At the moment, only plots ridge and smooth functions. When several terms
-#'    are plotted, waits for user response before displaying the next one.
+#'    \code{\link[graphics]{par}}.
 #'
 #' @export
 plot.cgaim <- function(x, select = NULL, ci = NULL,
-  ci.type = c("normal", "boot.pct", "boot.t", "boot.bca"),
+  ci.type = c("boot.pct", "normal", "boot.t", "boot.bca"),
   ci.plot = c("polygon", "lines"), ci.args = list(), ...)
 {
   p <- ncol(x$gfit)
