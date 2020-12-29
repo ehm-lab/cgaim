@@ -185,7 +185,8 @@ confint.cgaim <- function(object, parm, level = 0.95,
         z = matrix(NA, n, length(parm)))
       if (!is.null(aparm)){
         for (i in seq_along(aparm)){
-          zseq <- seq(min(zb[,i,]), max(zb[,i,]), length.out = n)
+          zseq <- seq(min(object$indexfit[,aparm[i]]), 
+            max(object$indexfit[,aparm[i]]), length.out = n)
           gCI$boot.pct$z[,i] <- zseq
           gext <- mapply(function(x, y) stats::spline(x, y, xout = zseq)$y, 
             x = as.data.frame(zb[,i,]), y = as.data.frame(gb[,i,]))
