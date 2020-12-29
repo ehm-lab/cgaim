@@ -49,5 +49,5 @@ usethis::use_package("gratia")
 devtools::check()
 
 # Package installation
-install_github("PierreMasselot/cgaim")
+devtools::install_github("PierreMasselot/cgaim")
 library(cgaim)

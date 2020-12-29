@@ -172,8 +172,10 @@ confint.cgaim <- function(object, parm, level = 0.95,
     if (length(parm) == 1){ 
       betab <- t(as.matrix(betab))
       gb <- array(gb, c(n, 1, B))
-      zb <- array(zb, c(n, 1, B))
 #      gesb <- array(gesb, c(n, 1, B))
+    }
+    if (length(aparm) == 1){
+      zb <- array(zb, c(n, 1, B))
     }
     rownames(betab) <- names(betas)
     if ("boot.pct" %in% type){
