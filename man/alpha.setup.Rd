@@ -4,8 +4,14 @@
 \alias{alpha.setup}
 \title{Alpha control}
 \usage{
-alpha.setup(Cmat = NULL, alpha.start = NULL, init.type = "regression",
-  norm.type = "L2", solver = "osqp", qp_pars = list())
+alpha.setup(
+  Cmat = NULL,
+  alpha.start = NULL,
+  init.type = "regression",
+  norm.type = "L2",
+  solver = "osqp",
+  qp_pars = list()
+)
 }
 \arguments{
 \item{Cmat}{Overall constraint matrix for alpha coefficients.

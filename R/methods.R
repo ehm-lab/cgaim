@@ -77,6 +77,7 @@ confint.cgaim <- function(object, parm, level = 0.95,
     }
   }
   aparm <- intersect(parm, 1:p)
+  cparm <- parm[parm > p] - p
   alims <- c((1 - level) / 2, 1 - (1 - level) / 2)
   level.labels <- sprintf("%s%%", alims * 100)
   dvec <- which(object$index %in% aparm)
@@ -131,7 +132,8 @@ confint.cgaim <- function(object, parm, level = 0.95,
       pars$y <- object$fitted + object$residuals[b]
       attributes(pars$y) <- attributes(object$y)
       resb <- do.call("gaim_gn", pars)
-      list(resb$alpha[dvec], resb$beta[parm + 1], resb$gfit[,parm])
+      list(resb$alpha[dvec], resb$beta[parm + 1], resb$gfit[,parm],
+        resb$indexfit[,aparm])
     }
     bootPairs <- function(b, object, pars){
       pars$y <- object$y[b]
@@ -142,7 +144,8 @@ confint.cgaim <- function(object, parm, level = 0.95,
       }
       pars$w <- object$w[b]
       resb <- do.call("gaim_gn", pars)
-      list(resb$alpha[dvec], resb$beta[parm + 1], resb$gfit[,parm])
+      list(resb$alpha[dvec], resb$beta[parm + 1], resb$gfit[,parm],
+        resb$indexfit[,aparm])
     }   
     bootFun <- ifelse(boot.type == "pairs", bootPairs, bootRes)
     resb <- switch(applyFun,
@@ -164,10 +167,12 @@ confint.cgaim <- function(object, parm, level = 0.95,
     betab <- sapply(resb, "[[", 2)
     # sebb <- sapply(resb, "[[", 4)
     gb <- sapply(resb, "[[", 3, simplify = "array")
+    zb <- sapply(resb, "[[", 4, simplify = "array")
 #    gesb <- sapply(resb, "[[", 6, simplify = "array")
     if (length(parm) == 1){ 
       betab <- t(as.matrix(betab))
       gb <- array(gb, c(n, 1, B))
+      zb <- array(zb, c(n, 1, B))
 #      gesb <- array(gesb, c(n, 1, B))
     }
     rownames(betab) <- names(betas)
@@ -176,8 +181,24 @@ confint.cgaim <- function(object, parm, level = 0.95,
         alims, na.rm = TRUE))
       betaCI$boot.pct <- t(apply(betab, 1, stats::quantile, 
         alims, na.rm = TRUE))
-      gCI$boot.pct <- apply(gb, 1:2, quantile, alims, na.rm = TRUE)
-      gCI$boot.pct <- aperm(gCI$boot.pct, c(2,3,1))
+      gCI$boot.pct <- list(g = array(NA, dim = c(n, length(parm), 2)), 
+        z = matrix(NA, n, length(parm)))
+      if (!is.null(aparm)){
+        for (i in seq_along(aparm)){
+          zseq <- seq(min(zb[,i,]), max(zb[,i,]), length.out = n)
+          gCI$boot.pct$z[,i] <- zseq
+          gext <- mapply(function(x, y) stats::spline(x, y, xout = zseq)$y, 
+            x = as.data.frame(zb[,i,]), y = as.data.frame(gb[,i,]))
+          gCI$boot.pct$g[,i,] <- t(apply(gext, 1, stats::quantile, probs = alims))
+        }
+      }
+      if(!is.null(cparm)){
+        for (i in seq_along(cparm)){
+          gCI$boot.pct$z[,i + length(aparm)] <- sort(object$covariates[,cparm[i]])
+          gCI$boot.pct$g[,i + length(aparm),] <- t(apply(gb[,i + length(aparm),], 
+            1, stats::quantile, probs = alims))[order(object$covariates[,cparm[i]]),]
+        }
+      }
     } 
 #     if ("boot.t" %in% type){
 #       tb <- (alphab - matrix(alphas, d, B)) / seb
@@ -255,7 +276,8 @@ confint.cgaim <- function(object, parm, level = 0.95,
     # }
     alphaCI$alpha.boot <- t(alphab)
     betaCI$beta.boot <- t(betab)
-#    gCI$g.boot <- gb
+    gCI$g.boot <- gb
+    gCI$z.boot <- zb
   }
   out <- list(alpha = alphaCI, beta = betaCI, g = gCI)
   return(out)
@@ -430,13 +452,11 @@ plot.cgaim <- function(x, select = NULL, ci = NULL,
     jpars$x <- xy[,1]
     jpars$y <- xy[,2]
     if (!is.null(ci)){
-      cij <- allcis[,j,]
+      cixy <- cbind(allcis$z[,j], allcis$g[,j,])
       if (is.null(jpars$ylim)){
-        jpars$ylim <- range(cij)
+        jpars$ylim <- range(allcis$g[,j,])
       }
       do.call(graphics::plot, jpars)
-      cixy <- cbind(xs[,j], cij)
-      cixy <- cixy[order(cixy[,1]),]
       if (ci.plot == "polygon"){
         ci.args$x <- c(cixy[,1], rev(cixy[,1]))
         ci.args$y <- c(cixy[,2], rev(cixy[,3]))

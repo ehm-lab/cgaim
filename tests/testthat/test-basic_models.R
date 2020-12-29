@@ -150,3 +150,23 @@ test_that("Monotone increasing constraint on smooths works with 'scar'",{
 #   expect_true(all(diff(ans2$gfit[order(ans2$indexfit[,1]), 1]) <= 0))
 #   expect_true(all(diff(ans2$gfit[order(ans2$indexfit[,2]), 2]) <= 0))
 # })
+
+#----------------------------
+# Model with a covariate
+#----------------------------
+
+set.seed(2020)
+n <- 200
+x1 <- rnorm(n)
+x2 <- rnorm(n)
+x3 <- rnorm(n)
+x4 <- rnorm(n)
+x5 <- rnorm(n)
+mu <- 4 * exp(8 * x1) / (1 + exp(8 * x1)) + exp(x3) + sin(x4 + x5)
+y <- mu + rnorm(n)
+df3 <- data.frame(y, x1, x2, x3, x4, x5)
+
+ans <- cgaim(y ~ g(x1, x2, label = "i1") + s(x3) + g(x4, x5, label = "i2"),
+  data = df3)
+cia <- confint(ans, B = 5)
+plot(ans, ci = cia, select = 3)

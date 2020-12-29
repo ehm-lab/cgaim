@@ -4,8 +4,13 @@
 \alias{algo.setup}
 \title{Iterative algorithm control}
 \usage{
-algo.setup(max.iter = 50, tol = 0.001, min.step.len = 0.1, halving = T,
-  convergence_criterion = c("change", "offset"))
+algo.setup(
+  max.iter = 50,
+  tol = 0.001,
+  min.step.len = 0.1,
+  halving = T,
+  convergence_criterion = c("change", "offset")
+)
 }
 \arguments{
 \item{max.iter}{The maximum number of iteration allowed. Default to 50.}

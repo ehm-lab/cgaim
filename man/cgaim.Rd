@@ -4,9 +4,17 @@
 \alias{cgaim}
 \title{Constrained groupwise additive index models}
 \usage{
-cgaim(formula, data, weights, na.action, smooth_method = c("scam", "cgam",
-  "scar"), smooth.control = list(), alpha.control = list(),
-  algo.control = list(), keep.trace = F)
+cgaim(
+  formula,
+  data,
+  weights,
+  na.action,
+  smooth_method = c("scam", "cgam", "scar"),
+  smooth.control = list(),
+  alpha.control = list(),
+  algo.control = list(),
+  keep.trace = F
+)
 }
 \arguments{
 \item{formula}{A CGAIM formula with index terms \code{\link{g}}, 

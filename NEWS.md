@@ -1,3 +1,9 @@
+## 0.2.03
+
+### Bug fixes
+- Fixed computation of bootstrap confidence intervals for ridge functions `g`.
+- Got back to new form of documentation.
+
 ## 0.2.02
 
 ### Changes

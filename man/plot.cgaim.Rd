@@ -4,9 +4,15 @@
 \alias{plot.cgaim}
 \title{Plot CGAIM terms}
 \usage{
-\method{plot}{cgaim}(x, select = NULL, ci = NULL, ci.type = c("boot.pct",
-  "normal", "boot.t", "boot.bca"), ci.plot = c("polygon", "lines"),
-  ci.args = list(), ...)
+\method{plot}{cgaim}(
+  x,
+  select = NULL,
+  ci = NULL,
+  ci.type = c("boot.pct", "normal", "boot.t", "boot.bca"),
+  ci.plot = c("polygon", "lines"),
+  ci.args = list(),
+  ...
+)
 }
 \arguments{
 \item{x}{A \code{cgaim} object.}

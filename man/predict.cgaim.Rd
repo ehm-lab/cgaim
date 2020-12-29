@@ -4,8 +4,14 @@
 \alias{predict.cgaim}
 \title{Predictions from a fitted CGAIM object}
 \usage{
-\method{predict}{cgaim}(object, newdata, type = c("response", "terms",
-  "indices"), select = NULL, na.action = "na.pass", ...)
+\method{predict}{cgaim}(
+  object,
+  newdata,
+  type = c("response", "terms", "indices"),
+  select = NULL,
+  na.action = "na.pass",
+  ...
+)
 }
 \arguments{
 \item{object}{A \code{gaim} object.}
