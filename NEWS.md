@@ -1,3 +1,8 @@
+## 0.2.04
+
+### Bug fixes
+- Bug for the predict function when some data come from matrices.
+
 ## 0.2.03
 
 ### Bug fixes

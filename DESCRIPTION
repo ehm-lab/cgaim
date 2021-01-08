@@ -1,6 +1,6 @@
 Package: cgaim
 Title: Constrained groupwise additive index models
-Version: 0.2.03
+Version: 0.2.04
 Authors@R: 
     person(given = "Pierre",
            family = "Masselot",

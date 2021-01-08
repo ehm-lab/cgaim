@@ -364,19 +364,19 @@ predict.cgaim <- function(object, newdata,
       if (!is.null(select)) newindex <- newindex[,select, drop = F]
       return(newindex)
     }
-    Xterms <- data.frame(newindex, newdata[,names(object$covariates)])
+    Xterms <- c(data.frame(newindex), newdata[names(object$covariates)])
     sind <- attr(mt, "specials")$s
-    objx <- data.frame(object$indexfit, object$covariates)
+    objx <- cbind(object$indexfit, object$covariates)
     gterms <- matrix(0, nrow(mfind), p)
     for (j in 1:p){
       if (is.numeric(Xterms[[j]])){
         inter_fun <- ifelse(j %in% c(gind, sind), "spline", "approx")
         gterms[,j] <- suppressWarnings(do.call(inter_fun, 
-          list(x = objx[,j], y = object$gfit[,j], xout = Xterms[,j]))$y) 
+          list(x = objx[,j], y = object$gfit[,j], xout = Xterms[[j]]))$y) 
       } else {
         faccoefs <- unique(object$gfit[,j])
         names(faccoefs) <- unique(objx[,j])
-        gterms[,j] <- faccoefs[Xterms[,j]]
+        gterms[,j] <- faccoefs[Xterms[[j]]]
       }
     }
     colnames(gterms) <- colnames(object$gfit)
