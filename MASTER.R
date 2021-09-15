@@ -3,8 +3,8 @@ library(usethis)
 library(testthat)
 
 package_name <- "cgaim"
-# package_path <- sprintf("C:/Users/masselpl/Documents/Recherche/# R packages/%s", 
-#   package_name)
+package_path <- sprintf("C:/Users/PierreMasselot/Documents/Recherche/# R/Packages/%s",
+  package_name)
 
 # Package creation (run once)
 # create_package(package_path)
@@ -13,7 +13,7 @@ package_name <- "cgaim"
 # setwd(package_path)
 
 # Load all functions from package
-load_all()
+load_all(package_path)
 
 # Create tests
 use_testthat()
@@ -44,10 +44,12 @@ usethis::use_package("stats")
 usethis::use_package("MASS")
 usethis::use_package("mgcv")
 usethis::use_package("gratia")
+usethis::use_package("methods")
 
 # CMD check
 devtools::check()
 
 # Package installation
+remove.packages("cgaim")
 devtools::install_github("PierreMasselot/cgaim")
 library(cgaim)

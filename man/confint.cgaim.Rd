@@ -34,7 +34,8 @@ to compute. \code{"normal"} compute classical confidence intervals
 based on normal approximation. The others are all based on bootstrap.
 \code{"boot.pct"} computes intervals as percentiles of the bootstrap
 distribution. \code{"boot.t"} computes studentized bootstrap intervals.
-\code{"boot.bca"} (still experimental, use at your own risk) computes bias-corrected and accelerated bootstrap
+\code{"boot.bca"} (still experimental, use at your own risk) 
+computes bias-corrected and accelerated bootstrap
 intervals. Can include several types.
 CURRENTLY, ONLY "boot.pct" WORKS}
 

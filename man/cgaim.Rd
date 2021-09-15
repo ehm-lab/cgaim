@@ -9,11 +9,10 @@ cgaim(
   data,
   weights,
   na.action,
-  smooth_method = c("scam", "cgam", "scar"),
-  smooth.control = list(),
-  alpha.control = list(),
-  algo.control = list(),
-  keep.trace = F
+  smooth_method = "scam",
+  smooth_control = list(),
+  alpha_control = list(),
+  algo_control = list()
 )
 }
 \arguments{
@@ -22,63 +21,65 @@ smooth terms \code{\link{s}} and linear terms.}
 
 \item{data}{A data.frame containing the variables of the model.}
 
-\item{weights}{A vector of optional weights for observations. If \code{NULL}, unit weights are considered.}
+\item{weights}{A vector of optional weights for observations.}
 
 \item{na.action}{A function indicating what treatment applying to NAs. If
-missing the default is set by the \code{na.action} setting of \code{options}. See
-\code{\link[stats]{na.fail}}.}
+missing the default is set by the \code{na.action} setting of \code{options}. 
+See \code{\link[stats]{na.fail}}.}
 
-\item{smooth_method}{The shape constrained smoothing method to consider. The default is \code{\link[scam]{scam}}, but other options are \code{\link[cgam]{cgam}} and \code{\link[scar]{scar}}. See details.}
+\item{smooth_method}{The shape constrained smoothing method to consider. 
+The default is \code{\link[scam]{scam}}, but other options are 
+\code{\link[cgam]{cgam}} and \code{\link[scar]{scar}}. See details.}
 
-\item{smooth.control}{A list containing parameters for the shape-contrained smoothing function given passed to \code{smooth_method}. See help of the functions for the list of parameters.}
+\item{smooth_control}{A list of control parameters for the shape-constrained 
+smoothing function given in \code{smooth_method}. 
+See help of the functions for the list of available parameters.}
 
-\item{alpha.control}{A list containing the controlling parameters for the
-alpha optimization steps of the algorithm. See \code{\link{alpha.setup}}.}
+\item{alpha_control}{A list of parameters controlling the
+alpha updating steps of the algorithm. See \code{\link{alpha.control}}.}
 
-\item{algo.control}{A list containing controlling parameters for the
-whole algorithm. See \code{\link{algo.setup}}.}
-
-\item{keep.trace}{Logical. If TRUE, the result contains a 'trace' element
-giving the intermediate values of alpha coefficients and ridge functions
-at each step of the algorithm. Useful for behaviour tracking.}
+\item{algo_control}{A list containing controlling parameters for the
+outer algorithm. See \code{\link{algo.control}}.}
 }
 \value{
 A \code{cgaim} object, i.e. a list with components:
  \item{alpha}{A named list of index coefficients.}
  \item{gfit}{A matrix containing the ridge and smooth functions 
-   evaluated at the observations. Note that column ordering puts indices first and covariates after.}
+   evaluated at the observations. 
+   Note that column ordering puts indices first and covariates after.}
  \item{indexfit}{A matrix containing the indices evaluated at the 
    observations.}
  \item{beta}{A vector containing the intercept and the scale coefficient
    of each ridge and smooth function. Includes the \eqn{\gamma_{k}} of
-   the CGAIM model above. Note that ordering puts indices first and covariates after.}.
+   the CGAIM model above. Note that ordering puts indices first and 
+   covariates after.}.
  \item{index}{A vector identifying to which index the columns of the
    element \code{x} belong.}
- \item{fitted}{A vector of fitted y values.}
+ \item{fitted}{A vector of fitted responses.}
  \item{residuals}{A vector of residuals.}
  \item{rss}{The residual sum of squares of the fit.}
  \item{flag}{A flag indicating how the algorithm stopped. 1 for proper 
-   convergence, 2 when the algorithm stopped for lack of step in the
-   descent direction and 3 when the maximum number of iterations has
+   convergence, 2 when the algorithm stopped for failing to decrease rss
+   and 3 when the maximum number of iterations has
    been reached.}
- \item{trace}{If \code{keep.trace = TRUE}, a tracking list containing,
-   for each iteration, values of alpha coefficients, 
-   ridge and smooth function, convergence criteria, step length,
-   as well as the number of iterations.}
+ \item{niter}{Number of iterations performed.}
+ \item{edf}{Effective degrees of freedom of the estimator.}
+ \item{gcv}{Generalized cross validation score.}
  \item{covariates}{A data.frame containing the values of the variables not 
    entering any index.}
  \item{x}{A matrix containing the variables entering the indices. 
-   The variables are mapped to each index throught the element \code{index}.}
+   The variables are mapped to each index through the element \code{index}.}
  \item{y}{The response vector.}
  \item{weights}{The weights used for estimation.}
- \item{smooth.control}{The controlling parameters passed to the function
-   for the smoothing steps.}
- \item{alpha.control}{The controlling parameters passed to the function
-   for the alpha update steps.}
- \item{algo.control}{The controlling parameters passed to the function
-   for the minimization algorithm.}
+ \item{smooth_control}{List of parameters controlling the smoothing step.}
+ \item{alpha_control}{List of parameters controlling alpha updating step.}
+ \item{algo_control}{List of parameters controlling the algorithm.}
  \item{terms}{A \code{\link[stats]{terms.object}} representing the model.
    Useful for prediction.}
+ \item{trace}{If \code{algo_control$trace = TRUE}, a tracking list 
+   containing, for each iteration, values of alpha coefficients, 
+   ridge and smooth function, convergence criteria, step length,
+   as well as the number of iterations.}
 }
 \description{
 Fits a constrained groupwise additive index model (CGAIM) through alternative 
@@ -90,25 +91,27 @@ The CGAIM is expressed
    + \sum_{k} \gamma_{k} f_{k}(x_{ik}) + e_{i}}
  The formula interface considers \code{\link{g}} to identify index terms,
   \code{\link{s}} for smooth functions and can also include 
-   linear terms. All smooth terms can be
-   shape constrained.
+   linear terms. All smooth terms can be shape constrained.
 
 The CGAIM allows for linear constraints on the alpha coefficients. 
- Common constraints can be given for each index through the 
- \code{\link{g}} terms in the formula. Custom constraints, including multi-index constraints can be passed as a matrix through \code{alpha.control$Cmat}. See 
- \code{\link{alpha.setup}}.
+ Common constraints can be given for each index through the \code{acons} 
+ parameter in \code{\link{g}} terms in the formula. Custom constraints 
+ can either be given for each idnex individually through the 
+ \code{\link{g}} interface, or for all parameters through
+ \code{alpha.control$Cmat}. See \code{\link{alpha.control}}.
 
 The CGAIM is fitted through an iterative algorithm that alternates between
  estimating the ridge functions \eqn{g_{j}} (and other non-index terms) and 
  updating the coefficients \eqn{\alpha_{j}}. The smoothing of ridge functions
- currently supports three methods: \code{\link[scam]{scam}} (the default), \code{\link[cgam]{cgam}} and \code{\link[scar]{scar}}. The list \code{smooth.control} allows controlling the functions.
+ currently supports three methods: \code{\link[scam]{scam}} (the default), 
+ \code{\link[cgam]{cgam}} and \code{\link[scar]{scar}}. 
+ The list \code{smooth.control} allows controlling the functions.
 
 Updating the coefficient is made through quadratic programming. Currently,
  it is carried out by either the function 
  \code{\link[osqp:solve_osqp]{solve_osqp}} or 
- \code{\link[quadprog:solve.QP]{solve.QP}}. Controlling the updates is
- made through the parameter \code{alpha.control}. See \code{\link{alpha.setup}}
- for the detail.
+ \code{\link[quadprog:solve.QP]{solve.QP}}. See \code{\link{alpha.control}}
+ for details.
 }
 \seealso{
 \code{\link{confint.cgaim}} for confidence interval,

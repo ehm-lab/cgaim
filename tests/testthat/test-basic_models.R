@@ -1,3 +1,4 @@
+
 #----------------------------
 # Create data
 #----------------------------
@@ -46,24 +47,24 @@ ans2 <- cgaim(y ~ g(x1, x2, acons = list(monotone = -1)),
   data = df1)
 # Two-index
 ans3 <- cgaim(y ~ g(x1, x2, acons = list(monotone = 1)) + 
-    g(x3, x4, acons = list(monotone = 1)), 
+    g(x3, x4, Cmat = diff(diag(2))), 
   data = df2)
 ans4 <- cgaim(y ~ g(x1, x2, acons = list(monotone = -1)) + 
-    g(x3, x4, acons = list(monotone = -1)), 
+    g(x3, x4, Cmat = -diff(diag(2))), 
   data = df2)
   
 test_that("monotonicity constraints on alpha work", {
-  expect_gte(ans1$alpha.control$Cmat %*% unlist(ans1$alpha), 0)
-  expect_gte(ans2$alpha.control$Cmat %*% unlist(ans2$alpha), 0)
-  expect_true(all(ans3$alpha.control$Cmat %*% unlist(ans3$alpha) > 0))
-  expect_true(all(ans4$alpha.control$Cmat %*% unlist(ans4$alpha) > 0))
+  expect_gte(ans1$alpha_control$Cmat %*% unlist(ans1$alpha), 0)
+  expect_gte(ans2$alpha_control$Cmat %*% unlist(ans2$alpha), 0)
+  expect_true(all(ans3$alpha_control$Cmat %*% unlist(ans3$alpha) >= 0))
+  expect_true(all(ans4$alpha_control$Cmat %*% unlist(ans4$alpha) >= 0))
 })
 
 #----- Sign constraints
 # Single-index
-
 ans2 <- cgaim(y ~ g(x1, x2, acons = list(sign.const = -1)), 
   data = df1)
+
 # Two-index
 ans3 <- cgaim(y ~ g(x1, x2, acons = list(sign.const = 1)) + 
     g(x3, x4, acons = list(sign.const = 1)), 
@@ -73,10 +74,10 @@ ans4 <- cgaim(y ~ g(x1, x2, acons = list(sign.const = -1)) +
   data = df2)
   
 test_that("sign constraints on alpha work", {
-  expect_true(all(ans1$alpha.control$Cmat %*% unlist(ans1$alpha) > 0))
-  expect_true(all(ans2$alpha.control$Cmat %*% unlist(ans2$alpha) > 0))
-  expect_true(all(ans3$alpha.control$Cmat %*% unlist(ans3$alpha) > 0))
-  expect_true(all(ans4$alpha.control$Cmat %*% unlist(ans4$alpha) > 0))
+  expect_true(all(ans1$alpha_control$Cmat %*% unlist(ans1$alpha) > 0))
+  expect_true(all(ans2$alpha_control$Cmat %*% unlist(ans2$alpha) > 0))
+  expect_true(all(ans3$alpha_control$Cmat %*% unlist(ans3$alpha) > 0))
+  expect_true(all(ans4$alpha_control$Cmat %*% unlist(ans4$alpha) > 0))
 })
 
 #----------------------------
@@ -91,8 +92,8 @@ ans2 <- cgaim(y ~ g(x1, x2, fcons = "inc") + g(x3, x4, fcons = "inc"),
 
 test_that("Monotone increasing constraint on smooths works with 'scam'",{
   expect_true(all(diff(ans1$gfit[order(ans1$indexfit)]) >= 0))
-  expect_true(all(diff(ans2$gfit[order(ans2$indexfit[,1]), 1]) >= 0))
-  expect_true(all(diff(ans2$gfit[order(ans2$indexfit[,2]), 2]) >= 0))
+  expect_true(all(round(diff(ans2$gfit[order(ans2$indexfit[,1]), 1]), 10) >= 0))
+  expect_true(all(round(diff(ans2$gfit[order(ans2$indexfit[,2]), 2]), 10) >= 0))
 })
 
 ans1 <- cgaim(y ~ g(x1, x2, fcons = "inc"), 
@@ -152,7 +153,7 @@ test_that("Monotone increasing constraint on smooths works with 'scar'",{
 # })
 
 #----------------------------
-# Model with a covariate
+# Model with a covariate and more complex setting
 #----------------------------
 
 set.seed(2020)
@@ -166,7 +167,8 @@ mu <- 4 * exp(8 * x1) / (1 + exp(8 * x1)) + exp(x3) + sin(x4 + x5)
 y <- mu + rnorm(n)
 df3 <- data.frame(y, x1, x2, x3, x4, x5)
 
-ans <- cgaim(y ~ g(x1, x2, label = "i1") + s(x3) + g(x4, x5, label = "i2"),
+ans <- cgaim(y ~ g(x1, x2, label = "i1", s_opts = list(sp = 0)) + 
+    s(x3, s_opts = list(bs = "cr")) + g(x4, x5, label = "i2", fcons = "inc"),
   data = df3)
 cia <- confint(ans, B = 5)
 plot(ans, ci = cia, select = 3)

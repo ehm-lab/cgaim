@@ -1,3 +1,14 @@
+## 0.3.00
+
+### New features
+- Add computation of effective degrees of freedom.
+- Add GCV computation.
+- Add ctol parameter to add a small margin to contraints.
+
+### Changes
+- Names of algorithm controlling arguments changed with specific help pages added.
+- Internal reorganization of functions.
+
 ## 0.2.04
 
 ### Bug fixes

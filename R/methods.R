@@ -13,7 +13,8 @@
 #'    based on normal approximation. The others are all based on bootstrap.
 #'    \code{"boot.pct"} computes intervals as percentiles of the bootstrap
 #'    distribution. \code{"boot.t"} computes studentized bootstrap intervals.
-#'    \code{"boot.bca"} (still experimental, use at your own risk) computes bias-corrected and accelerated bootstrap
+#'    \code{"boot.bca"} (still experimental, use at your own risk) 
+#'    computes bias-corrected and accelerated bootstrap
 #'    intervals. Can include several types.
 #'    CURRENTLY, ONLY "boot.pct" WORKS
 #' @param boot.type Character indicating the type of resampling for bootstrap.
@@ -73,7 +74,8 @@ confint.cgaim <- function(object, parm, level = 0.95,
       parm <- which(names(object$alpha) %in% parm)
     }
     if (!any(parm %in% 1:p)){
-      stop("'parm' incorrectly specified. Please specify index either with their labels or with their number")
+      stop(paste0("'parm' incorrectly specified. ", 
+        "Please specify index either with their labels or with their number"))
     }
   }
   aparm <- intersect(parm, 1:p)
@@ -114,19 +116,16 @@ confint.cgaim <- function(object, parm, level = 0.95,
     applyFun <- match.arg(applyFun)
     if (is.null(bsamples)){
       bsamples <- sample(seq_len(n - l + 1), (n * B) / l, replace = TRUE)
-      suppressWarnings(bsamples <- matrix(sapply(bsamples, function(b) b:(b + l - 1)), 
-        nrow = n, ncol = B))
+      suppressWarnings(bsamples <- matrix(sapply(bsamples,
+        function(b) b:(b + l - 1)), nrow = n, ncol = B))
     } else {
       B <- ncol(bsamples)
     }
-    if (is.null(object$y)){
-      stop("Cannot find data in object. keep.data must be set to TRUE to use bootstrap confidence intervals.")
-    }
-    pars <- object$algo.control
+    pars <- object$algo_control
     pars$x <- object$x
     pars$index <- object$index
-    pars$smooth.control <- object$smooth.control
-    pars$alpha.control <- object$alpha.control
+    pars$smooth_control <- object$smooth_control
+    pars$alpha_control <- object$alpha_control
     pars$w <- object$weights
     bootRes <- function(b, object, pars){
       pars$y <- object$fitted + object$residuals[b]
@@ -139,9 +138,8 @@ confint.cgaim <- function(object, parm, level = 0.95,
       pars$y <- object$y[b]
       attr(pars$y, "varname") <- attr(object$y, "varname")
       pars$x <- object$x[b,]
-      if (!is.null(object$smooth.control$Xcov)){ 
-        pars$smooth.control$Xcov <- object$smooth.control$Xcov[b,]
-      }
+      if (!is.null(pars$smooth_control$Xcov)) pars$smooth_control$Xcov <- 
+        pars$smooth_control$Xcov[b,]
       pars$w <- object$w[b]
       resb <- do.call("gaim_gn", pars)
       list(resb$alpha[dvec], resb$beta[parm + 1], resb$gfit[,parm],

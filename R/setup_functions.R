@@ -1,21 +1,50 @@
 #' Defining indices in CGAIM
 #'
-#' Function used to define terms whithin a \code{cgaim} formula. \code{g} for an index on a list of variable and \code{s} for a smooth covariate.
+#' Function used to define terms whithin a \code{cgaim} formula. \code{g} 
+#'  for an index on a list of variable and \code{s} for a smooth covariate.
 #'
-#' @param ... Variables on which the index is based. May contain vectors and matrices.
+#' @param ... Variables on which the index is based. May contain vectors and 
+#'  matrices.
 #' @param label A character used to give a name to the index. Useful for
-#'    displaying the results. By default use the name of the variable passed (the first one for \code{g}).
-#' @param acons A list of constraints to be applied to the index weights \code{alpha}. Can be named values for common constraints as proposed in \code{\link{build_constraints}} for built-in constraints. Can also contain numeric vectors specifying custom linear constraints, see \code{\link{alpha.setup}}. TO BE DONE
-#' @param fcons The type of shape constraint to be applied on the smooth function. See details for the list of shape constraints allowed.
-#' @param s_opts A named list of options to be passed to the smoothing of ridge functions. Arguments allowed heavily depend on the method used to smooth additive models. See details.
+#'  displaying the results. By default use the name of the variable passed 
+#'  (the first one for \code{g}).
+#' @param acons A list of constraints to be applied to the index weights 
+#'  \code{alpha}. Can be named values for common constraints as proposed in 
+#'  \code{\link{build_constraints}} for built-in constraints.
+#' @param Cmat A matrix specifying constraints on alpha coefficients. Number of
+#'  columns must match the number of variables in the index.
+#' @param bvec Vector of constraint bounds.
+#' @param first.pos By default, impose a constraint on the first coefficient
+#'  for identifiability. Switched to FALSE if any constraint is given.
+#' @param fcons The type of shape constraint to be applied on the smooth 
+#'  function. See details for the list of shape constraints allowed.
+#' @param s_opts A named list of options to be passed to the smoothing of 
+#'  ridge functions. Depends on the method used to smooth additive models. 
+#'  See details.
 #'
-#' For now, eight shape-constraints are allowed for either \code{g} or \code{s}: monotone increasing (\code{fcons = "inc"}), monotone decreasing (\code{fcons = "dec"}), convex (\code{fcons = "cvx"}), concave (\code{fcons = "ccv"}), increasing and convex(\code{fcons = "inccvx"}), decreasing and convex (\code{fcons = "deccvx"}), increasing and concave (\code{fcons = "incccv"}), decreasing and concave (\code{fcons = "decccv"}). 
+#' Eight shape-constraints are allowed for either \code{g} or \code{s}: 
+#'  monotone increasing (\code{fcons = "inc"}), 
+#'  monotone decreasing (\code{fcons = "dec"}), 
+#'  convex (\code{fcons = "cvx"}), 
+#'  concave (\code{fcons = "ccv"}), 
+#'  increasing and convex(\code{fcons = "inccvx"}), 
+#'  decreasing and convex (\code{fcons = "deccvx"}), 
+#'  increasing and concave (\code{fcons = "incccv"}), 
+#'  decreasing and concave (\code{fcons = "decccv"}). 
 #'
-#' The \code{s_opts} argument can be used to pass a list of argument for basis functions used in the chosen shape-consrained smoothing method. The possible arguments when \code{smooth_method = "scam"} can be found in \code{\link[mgcv]{s}}. For \code{smooth_method = "cgam"}, the parameters allowed may vary according to the shape-contraint chosen. The full list can be found in \code{\link[cgam]{cgam}}. Only the constraints beginning with \code{s.} are allowed for now. Finally, no parameter can be passed when \code{smooth_method = "scar"} since the method does not use basis functions.
+#' The \code{s_opts} argument can be used to pass a list of argument for 
+#'  basis functions used in the chosen shape-consrained smoothing method. 
+#'  The possible arguments when \code{smooth_method = "scam"} can be found in 
+#'  \code{\link[mgcv]{s}}. For \code{smooth_method = "cgam"}, the parameters 
+#'  allowed may vary according to the shape-contraint chosen. 
+#'  The full list can be found in \code{\link[cgam]{cgam}}. 
+#'  Only the constraints beginning with \code{s.} are allowed for now. 
+#'  Finally, no parameter can be passed when \code{smooth_method = "scar"} 
+#'  since the method does not use basis functions.
 #'
 #' @export
-g <- function(..., label = term[1], acons = list(), 
-  fcons = NULL, s_opts = list())
+g <- function(..., label = term[1], acons = list(), Cmat = NULL, bvec = 0, 
+  first.pos = T, fcons = NULL, s_opts = list())
 {
   vars <- as.list(substitute(list(...)))[-1]
   term <- sapply(vars, deparse)
@@ -29,22 +58,35 @@ g <- function(..., label = term[1], acons = list(),
   n <- unique(sapply(Xvars, nrow))
   if (length(n) > 1) stop("All variables in 'g' must have the same length")  
   Xmat <- do.call(cbind, Xvars)
-  colnames(Xmat) <- unlist(Map(paste0, term, lapply(Xvars, colnames)))
+  colnames(Xmat) <- unlist(Map(function(a, b) paste(c(a, b), collapse = "_"), 
+    term, lapply(Xvars, colnames)))
   p <- ncol(Xmat)
   if (p < 2) warning(sprintf("Less than 2 variables for index %s", label))
   if (!is.null(fcons)){ 
     fcons <- match.arg(fcons, c("inc", "dec", "cvx", "ccv", 
       "inccvx", "deccvx", "incccv", "decccv"))
   }
-  obt_opts <- deparse(substitute(s_opts))
-  opts_form <- substr(obt_opts, 6, nchar(obt_opts) - 1)
+  # obt_opts <- deparse(substitute(s_opts))
+  # opts_form <- substr(obt_opts, 6, nchar(obt_opts) - 1)
+  # Constraint matrix
+  if (!is.null(Cmat)){
+    if (is.vector(Cmat)){
+      Cmat <- t(as.matrix(Cmat))
+    }
+    if (ncol(as.matrix(Cmat)) != p){
+      stop(sprintf("In %s, ncol(Cmat) != of variable number", label))
+    }
+  }
   acons <- acons[names(acons) %in% 
-    methods::formalArgs(build_constraints)]
+      methods::formalArgs(build_constraints)]
   acons$nvars <- p
-  Cmat <- do.call(build_constraints, acons)
+  Cmat <- rbind(Cmat, do.call(build_constraints, acons))
+  if (first.pos & NROW(Cmat) == 0) Cmat <- rbind(Cmat, c(1, rep(0, p - 1)))
+  # Expand bvec to be consistent with Cmat
+  bvec <- rep_len(bvec, nrow(Cmat))
   attributes(Xmat) <- c(attributes(Xmat), 
     list(term = term, nterms = ncol(Xmat), label = label, 
-    fcons = fcons, s_formula = opts_form, Cmat = Cmat))
+    fcons = fcons, s_opts = s_opts, Cmat = Cmat, bvec = bvec))
   return(Xmat)
 }
 
@@ -59,10 +101,10 @@ s <- function(x, fcons = NULL, s_opts = list()){
     fcons <- match.arg(fcons, c("inc", "dec", "cvx", "ccv", 
       "inccvx", "deccvx", "incccv", "decccv"))
   }
-  obt_opts <- deparse(substitute(s_opts))
-  opts_form <- substr(obt_opts, 6, nchar(obt_opts) - 1)
+  # obt_opts <- deparse(substitute(s_opts))
+  # opts_form <- substr(obt_opts, 6, nchar(obt_opts) - 1)
   attributes(x) <- c(attributes(x),
-    list(fcons = fcons, s_formula = opts_form, label = deparse(cl$x)))
+    list(fcons = fcons, s_opts = s_opts, label = deparse(cl$x)))
   return(x)
 }
 
@@ -125,13 +167,17 @@ build_constraints <- function(nvars, monotone = 0, sign.const = 0,
 #' @param halving Logical indicating if halving the step length in case of bad 
 #'    step should be performed.
 #' @param convergence_criterion The criterion used to track convergence of the
-#'    algorithm. When \code{convergence_criterion = "change"}, the algorithm
+#'    algorithm. When \code{convergence_criterion = "change"} (the default), 
+#'    the algorithm
 #'    stops when the residual sum of squares and alpha coefficients change
 #'    by less than \code{tol}. Note that, in this case \code{tol} can be
 #'    a vector with two values. When \code{convergence_criterion = "offset"},
-#'    the offset criterion is used. It measures the orthogonality between 
+#'    the offset criterion is used (EXPERIMENTAL). 
+#'    It measures the orthogonality between 
 #'    the descent direction and residual sum of squares. This is the 
 #'    criterion used for instance by the \code{link[stats]{nls}} function.
+#' @param trace If TRUE, keeps each iteration of alpha, gfit and the
+#'  objective function to trace the algorithm.
 #'
 #' @references
 #'    Bates, D.M., Watts, D.G., 1981. A Relative Off set 
@@ -139,8 +185,14 @@ build_constraints <- function(nvars, monotone = 0, sign.const = 0,
 #'      Technometrics 23, 179–183.
 #'
 #' @export
-algo.setup <- function(max.iter = 50, tol = 1e-3, min.step.len = 0.1, 
-  halving = T, convergence_criterion = c("change", "offset"))
+algo.control <- function(max.iter = 50, tol = 1e-3, min.step.len = 0.1, 
+  halving = T, convergence_criterion = "change", trace = FALSE)
 {
-  invisible(NULL)  
+  pars <- as.list(match.call())[-1]
+  defpars <- formals(algo.control)
+  pars <- c(pars, defpars[!names(defpars) %in% names(pars)])
+  pars$convergence_criterion <- match.arg(pars$convergence_criterion,
+    c("change", "offset"))
+  if (pars$convergence_criterion == "change") pars$tol <- rep_len(pars$tol, 2)
+  pars
 }

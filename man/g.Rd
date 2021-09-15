@@ -5,30 +5,71 @@
 \alias{s}
 \title{Defining indices in CGAIM}
 \usage{
-g(..., label = term[1], acons = list(), fcons = NULL, s_opts = list())
+g(
+  ...,
+  label = term[1],
+  acons = list(),
+  Cmat = NULL,
+  bvec = 0,
+  first.pos = T,
+  fcons = NULL,
+  s_opts = list()
+)
 
 s(x, fcons = NULL, s_opts = list())
 }
 \arguments{
-\item{...}{Variables on which the index is based. May contain vectors and matrices.}
+\item{...}{Variables on which the index is based. May contain vectors and 
+matrices.}
 
 \item{label}{A character used to give a name to the index. Useful for
-displaying the results. By default use the name of the variable passed (the first one for \code{g}).}
+displaying the results. By default use the name of the variable passed 
+(the first one for \code{g}).}
 
-\item{acons}{A list of constraints to be applied to the index weights \code{alpha}. Can be named values for common constraints as proposed in \code{\link{build_constraints}} for built-in constraints. Can also contain numeric vectors specifying custom linear constraints, see \code{\link{alpha.setup}}. TO BE DONE}
+\item{acons}{A list of constraints to be applied to the index weights 
+\code{alpha}. Can be named values for common constraints as proposed in 
+\code{\link{build_constraints}} for built-in constraints.}
 
-\item{fcons}{The type of shape constraint to be applied on the smooth function. See details for the list of shape constraints allowed.}
+\item{Cmat}{A matrix specifying constraints on alpha coefficients. Number of
+columns must match the number of variables in the index.}
 
-\item{s_opts}{A named list of options to be passed to the smoothing of ridge functions. Arguments allowed heavily depend on the method used to smooth additive models. See details.
+\item{bvec}{Vector of constraint bounds.}
 
-For now, eight shape-constraints are allowed for either \code{g} or \code{s}: monotone increasing (\code{fcons = "inc"}), monotone decreasing (\code{fcons = "dec"}), convex (\code{fcons = "cvx"}), concave (\code{fcons = "ccv"}), increasing and convex(\code{fcons = "inccvx"}), decreasing and convex (\code{fcons = "deccvx"}), increasing and concave (\code{fcons = "incccv"}), decreasing and concave (\code{fcons = "decccv"}). 
+\item{first.pos}{By default, impose a constraint on the first coefficient
+for identifiability. Switched to FALSE if any constraint is given.}
 
-The \code{s_opts} argument can be used to pass a list of argument for basis functions used in the chosen shape-consrained smoothing method. The possible arguments when \code{smooth_method = "scam"} can be found in \code{\link[mgcv]{s}}. For \code{smooth_method = "cgam"}, the parameters allowed may vary according to the shape-contraint chosen. The full list can be found in \code{\link[cgam]{cgam}}. Only the constraints beginning with \code{s.} are allowed for now. Finally, no parameter can be passed when \code{smooth_method = "scar"} since the method does not use basis functions.}
+\item{fcons}{The type of shape constraint to be applied on the smooth 
+function. See details for the list of shape constraints allowed.}
+
+\item{s_opts}{A named list of options to be passed to the smoothing of 
+ ridge functions. Depends on the method used to smooth additive models. 
+ See details.
+
+Eight shape-constraints are allowed for either \code{g} or \code{s}: 
+ monotone increasing (\code{fcons = "inc"}), 
+ monotone decreasing (\code{fcons = "dec"}), 
+ convex (\code{fcons = "cvx"}), 
+ concave (\code{fcons = "ccv"}), 
+ increasing and convex(\code{fcons = "inccvx"}), 
+ decreasing and convex (\code{fcons = "deccvx"}), 
+ increasing and concave (\code{fcons = "incccv"}), 
+ decreasing and concave (\code{fcons = "decccv"}). 
+
+The \code{s_opts} argument can be used to pass a list of argument for 
+ basis functions used in the chosen shape-consrained smoothing method. 
+ The possible arguments when \code{smooth_method = "scam"} can be found in 
+ \code{\link[mgcv]{s}}. For \code{smooth_method = "cgam"}, the parameters 
+ allowed may vary according to the shape-contraint chosen. 
+ The full list can be found in \code{\link[cgam]{cgam}}. 
+ Only the constraints beginning with \code{s.} are allowed for now. 
+ Finally, no parameter can be passed when \code{smooth_method = "scar"} 
+ since the method does not use basis functions.}
 
 \item{x}{Covariate on which the smooth is applied.}
 }
 \description{
-Function used to define terms whithin a \code{cgaim} formula. \code{g} for an index on a list of variable and \code{s} for a smooth covariate.
+Function used to define terms whithin a \code{cgaim} formula. \code{g} 
+ for an index on a list of variable and \code{s} for a smooth covariate.
 }
 \section{Functions}{
 \itemize{
