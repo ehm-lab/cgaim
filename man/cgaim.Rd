@@ -4,16 +4,8 @@
 \alias{cgaim}
 \title{Constrained groupwise additive index models}
 \usage{
-cgaim(
-  formula,
-  data,
-  weights,
-  na.action,
-  smooth_method = "scam",
-  smooth_control = list(),
-  alpha_control = list(),
-  algo_control = list()
-)
+cgaim(formula, data, weights, na.action, smooth_method = "scam",
+  smooth_control = list(), alpha_control = list(), algo_control = list())
 }
 \arguments{
 \item{formula}{A CGAIM formula with index terms \code{\link{g}}, 
@@ -52,7 +44,7 @@ A \code{cgaim} object, i.e. a list with components:
  \item{beta}{A vector containing the intercept and the scale coefficient
    of each ridge and smooth function. Includes the \eqn{\gamma_{k}} of
    the CGAIM model above. Note that ordering puts indices first and 
-   covariates after.}.
+   covariates after.}
  \item{index}{A vector identifying to which index the columns of the
    element \code{x} belong.}
  \item{fitted}{A vector of fitted responses.}

@@ -1,6 +1,6 @@
 Package: cgaim
 Title: Constrained groupwise additive index models
-Version: 0.3.00
+Version: 0.3.01
 Authors@R: 
     person(given = "Pierre",
            family = "Masselot",
@@ -33,3 +33,4 @@ Imports:
     mgcv,
     gratia
 VignetteBuilder: knitr
+Roxygen: list(old_usage = TRUE)

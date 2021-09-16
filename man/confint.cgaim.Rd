@@ -4,20 +4,10 @@
 \alias{confint.cgaim}
 \title{Confidence intervals}
 \usage{
-\method{confint}{cgaim}(
-  object,
-  parm,
-  level = 0.95,
-  type = c("boot.pct", "boot.t", "boot.bca", "normal"),
-  boot.type = c("residuals", "pairs"),
-  bsamples = NULL,
-  B = 100,
-  l = 1,
-  m = 20,
-  applyFun = c("lapply", "mclapply", "parLapply"),
-  cl = NULL,
-  ...
-)
+\method{confint}{cgaim}(object, parm, level = 0.95, type = c("boot.pct",
+  "boot.t", "boot.bca", "normal"), boot.type = c("residuals", "pairs"),
+  bsamples = NULL, B = 100, l = 1, m = 20, applyFun = c("lapply",
+  "mclapply", "parLapply"), cl = NULL, ...)
 }
 \arguments{
 \item{object}{A \code{cgaim} object.}

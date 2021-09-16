@@ -58,8 +58,7 @@ g <- function(..., label = term[1], acons = list(), Cmat = NULL, bvec = 0,
   n <- unique(sapply(Xvars, nrow))
   if (length(n) > 1) stop("All variables in 'g' must have the same length")  
   Xmat <- do.call(cbind, Xvars)
-  colnames(Xmat) <- unlist(Map(function(a, b) paste(c(a, b), collapse = "_"), 
-    term, lapply(Xvars, colnames)))
+  colnames(Xmat) <- unlist(Map(paste0, term, lapply(Xvars, colnames)))
   p <- ncol(Xmat)
   if (p < 2) warning(sprintf("Less than 2 variables for index %s", label))
   if (!is.null(fcons)){ 
@@ -167,12 +166,12 @@ build_constraints <- function(nvars, monotone = 0, sign.const = 0,
 #' @param halving Logical indicating if halving the step length in case of bad 
 #'    step should be performed.
 #' @param convergence_criterion The criterion used to track convergence of the
-#'    algorithm. When \code{convergence_criterion = "change"} (the default), 
-#'    the algorithm
-#'    stops when the residual sum of squares and alpha coefficients change
-#'    by less than \code{tol}. Note that, in this case \code{tol} can be
-#'    a vector with two values. When \code{convergence_criterion = "offset"},
-#'    the offset criterion is used (EXPERIMENTAL). 
+#'    algorithm. Stops when its change is below \code{tol}. 
+#'    \code{convergence_criterion = "rss"} (the default) corresponds to 
+#'    the residual sum of squares. \code{convergence_criterion = "alpha"}
+#'    monitors change in alpha coefficients and compare the maximum absolute 
+#'    change to \code{tol}. \code{convergence_criterion = "offset"},
+#'    corresponds to the offset criterion (EXPERIMENTAL). 
 #'    It measures the orthogonality between 
 #'    the descent direction and residual sum of squares. This is the 
 #'    criterion used for instance by the \code{link[stats]{nls}} function.
@@ -186,13 +185,12 @@ build_constraints <- function(nvars, monotone = 0, sign.const = 0,
 #'
 #' @export
 algo.control <- function(max.iter = 50, tol = 1e-3, min.step.len = 0.1, 
-  halving = T, convergence_criterion = "change", trace = FALSE)
+  halving = T, convergence_criterion = "rss", trace = FALSE)
 {
   pars <- as.list(match.call())[-1]
   defpars <- formals(algo.control)
   pars <- c(pars, defpars[!names(defpars) %in% names(pars)])
   pars$convergence_criterion <- match.arg(pars$convergence_criterion,
-    c("change", "offset"))
-  if (pars$convergence_criterion == "change") pars$tol <- rep_len(pars$tol, 2)
+    c("rss", "alpha", "offset"))
   pars
 }

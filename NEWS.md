@@ -1,3 +1,11 @@
+## 0.3.01
+
+### Changes
+- Slight change in convergence handling: now possibility to choose between convergence in RSS or coefficients.
+
+### Bug fixes
+- Fixed bug cuased by naming variables in `g`.
+
 ## 0.3.00
 
 ### New features

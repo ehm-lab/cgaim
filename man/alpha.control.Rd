@@ -4,16 +4,9 @@
 \alias{alpha.control}
 \title{Alpha control}
 \usage{
-alpha.control(
-  Cmat = NULL,
-  bvec = NULL,
-  alpha.start = NULL,
-  init.type = "regression",
-  norm.type = "1",
-  solver = "quadprog",
-  ctol = 0.001,
-  qp_pars = list()
-)
+alpha.control(Cmat = NULL, bvec = NULL, alpha.start = NULL,
+  init.type = "regression", norm.type = "1", solver = "quadprog",
+  ctol = 0.001, qp_pars = list())
 }
 \arguments{
 \item{Cmat}{Overall constraint matrix for alpha coefficients.

@@ -4,14 +4,8 @@
 \alias{algo.control}
 \title{Iterative algorithm control}
 \usage{
-algo.control(
-  max.iter = 50,
-  tol = 0.001,
-  min.step.len = 0.1,
-  halving = T,
-  convergence_criterion = "change",
-  trace = FALSE
-)
+algo.control(max.iter = 50, tol = 0.001, min.step.len = 0.1,
+  halving = T, convergence_criterion = "rss", trace = FALSE)
 }
 \arguments{
 \item{max.iter}{The maximum number of iteration allowed. Default to 50.}
@@ -29,12 +23,12 @@ until resulting in a descent step of falling below
 step should be performed.}
 
 \item{convergence_criterion}{The criterion used to track convergence of the
-algorithm. When \code{convergence_criterion = "change"} (the default), 
-the algorithm
-stops when the residual sum of squares and alpha coefficients change
-by less than \code{tol}. Note that, in this case \code{tol} can be
-a vector with two values. When \code{convergence_criterion = "offset"},
-the offset criterion is used (EXPERIMENTAL). 
+algorithm. Stops when its change is below \code{tol}. 
+\code{convergence_criterion = "rss"} (the default) corresponds to 
+the residual sum of squares. \code{convergence_criterion = "alpha"}
+monitors change in alpha coefficients and compare the maximum absolute 
+change to \code{tol}. \code{convergence_criterion = "offset"},
+corresponds to the offset criterion (EXPERIMENTAL). 
 It measures the orthogonality between 
 the descent direction and residual sum of squares. This is the 
 criterion used for instance by the \code{link[stats]{nls}} function.}

@@ -5,16 +5,8 @@
 \alias{s}
 \title{Defining indices in CGAIM}
 \usage{
-g(
-  ...,
-  label = term[1],
-  acons = list(),
-  Cmat = NULL,
-  bvec = 0,
-  first.pos = T,
-  fcons = NULL,
-  s_opts = list()
-)
+g(..., label = term[1], acons = list(), Cmat = NULL, bvec = 0,
+  first.pos = T, fcons = NULL, s_opts = list())
 
 s(x, fcons = NULL, s_opts = list())
 }
