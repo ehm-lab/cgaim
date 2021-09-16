@@ -1,3 +1,8 @@
+## 0.3.02
+
+### Bug fixes
+- Fixed issue in the finding of active constraints in quadprog for edf.
+
 ## 0.3.01
 
 ### Changes
