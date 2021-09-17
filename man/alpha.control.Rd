@@ -5,7 +5,7 @@
 \title{Alpha control}
 \usage{
 alpha.control(Cmat = NULL, bvec = NULL, alpha.start = NULL,
-  init.type = "regression", norm.type = "1", solver = "quadprog",
+  init.type = "regression", norm.type = "1", solver = "osqp",
   ctol = 0.001, qp_pars = list())
 }
 \arguments{
@@ -33,8 +33,7 @@ each alpha_j vector for it to have norm 1.
 See \code{\link[base:norm]{norm}}.}
 
 \item{solver}{The quadratic programming solver to use. Implemented
-solvers are "quadprog" and "osqp" (see corresponding packages).
-The former is a bit slower but gives more accurate solutions.}
+solvers are "quadprog" and "osqp" (see corresponding packages).}
 
 \item{ctol}{Tolerance value to be added to \code{bvec} giving some margin
 on the constraints. Useful for cases in which rounding errors result

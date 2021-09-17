@@ -22,7 +22,6 @@
 #'    See \code{\link[base:norm]{norm}}.
 #' @param solver The quadratic programming solver to use. Implemented
 #'  solvers are "quadprog" and "osqp" (see corresponding packages).
-#'  The former is a bit slower but gives more accurate solutions.
 #' @param ctol Tolerance value to be added to \code{bvec} giving some margin
 #'  on the constraints. Useful for cases in which rounding errors result
 #'  in alphas slightly violating the constraints.
@@ -31,14 +30,15 @@
 #'
 #' @export
 alpha.control <- function(Cmat = NULL, bvec = NULL, alpha.start = NULL,
-  init.type = "regression", norm.type = "1", solver = "quadprog", ctol = 1e-3, 
+  init.type = "regression", norm.type = "1", solver = "osqp", ctol = 1e-3, 
   qp_pars = list())
 {
   pars <- as.list(match.call())[-1]
   defpars <- formals(alpha.control)
   pars <- c(pars, defpars[!names(defpars) %in% names(pars)])
-  if (NROW(Cmat) != NROW(bvec)){
-    pars$bvec <- rep_len(bvec, NROW(Cmat))
+  if (is.null(pars$bvec)) pars$bvec <- 0
+  if (NROW(pars$Cmat) != NROW(pars$bvec)){
+    pars$bvec <- rep_len(pars$bvec, NROW(pars$Cmat))
   }
   pars$init.type <- match.arg(init.type, c("regression", "random"))
   pars$solver <- match.arg(solver, c("quadprog", "osqp"))

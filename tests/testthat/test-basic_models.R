@@ -102,9 +102,9 @@ ans2 <- cgaim(y ~ g(x1, x2, fcons = "inc") + g(x3, x4, fcons = "inc"),
   data = df2, smooth_method = "scar")
 
 test_that("Monotone increasing constraint on smooths works with 'scar'",{
-  expect_true(all(diff(ans1$gfit[order(ans1$indexfit)]) >= 0))
-  expect_true(all(diff(ans2$gfit[order(ans2$indexfit[,1]), 1]) >= 0))
-  expect_true(all(diff(ans2$gfit[order(ans2$indexfit[,2]), 2]) >= 0))
+  expect_true(all(round(diff(ans1$gfit[order(ans1$indexfit)]), 10) >= 0))
+  expect_true(all(round(diff(ans2$gfit[order(ans2$indexfit[,1]), 1]), 10) >= 0))
+  expect_true(all(round(diff(ans2$gfit[order(ans2$indexfit[,2]), 2]), 10) >= 0))
 })
 
 # ans1 <- cgaim(y ~ g(x1, x2, fcons = "inc"), 
@@ -125,9 +125,9 @@ ans2 <- cgaim(y ~ g(x1, x2, fcons = "dec") + g(x3, x4, fcons = "dec"),
   data = df2, smooth_method = "scam")
 
 test_that("Monotone increasing constraint on smooths works with 'scam'",{
-  expect_true(all(diff(ans1$gfit[order(ans1$indexfit)]) <= 0))
-  expect_true(all(diff(ans2$gfit[order(ans2$indexfit[,1]), 1]) <= 0))
-  expect_true(all(diff(ans2$gfit[order(ans2$indexfit[,2]), 2]) <= 0))
+  expect_true(all(round(diff(ans1$gfit[order(ans1$indexfit)]), 10) <= 0))
+  expect_true(all(round(diff(ans2$gfit[order(ans2$indexfit[,1]), 1]), 10) <= 0))
+  expect_true(all(round(diff(ans2$gfit[order(ans2$indexfit[,2]), 2]), 10) <= 0))
 })
 
 ans1 <- cgaim(y ~ g(x1, x2, fcons = "dec"), 
@@ -136,9 +136,9 @@ ans2 <- cgaim(y ~ g(x1, x2, fcons = "dec") + g(x3, x4, fcons = "dec"),
   data = df2, smooth_method = "scar")
 
 test_that("Monotone increasing constraint on smooths works with 'scar'",{
-  expect_true(all(diff(ans1$gfit[order(ans1$indexfit)]) <= 0))
-  expect_true(all(diff(ans2$gfit[order(ans2$indexfit[,1]), 1]) <= 0))
-  expect_true(all(diff(ans2$gfit[order(ans2$indexfit[,2]), 2]) <= 0))
+  expect_true(all(round(diff(ans1$gfit[order(ans1$indexfit)]), 10) <= 0))
+  expect_true(all(round(diff(ans2$gfit[order(ans2$indexfit[,1]), 1]), 10) <= 0))
+  expect_true(all(round(diff(ans2$gfit[order(ans2$indexfit[,2]), 2]), 10) <= 0))
 })
 
 # ans1 <- cgaim(y ~ g(x1, x2, fcons = "dec"), 
