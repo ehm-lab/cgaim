@@ -116,20 +116,23 @@ cgaim <- function(formula, data, weights, na.action,
   # }
   # if (is.null(na.action)) na.action <- getOption("na.action")
   # Extract data
-  mf <- match.call(expand.dots = FALSE)
+  cl <- match.call(expand.dots = FALSE)
   m <- match(c("data", "weights", "na.action"), 
-    names(mf), 0L)
-  mf <- mf[c(1L, m)]
-  mf$drop.unused.levels <- TRUE
-  mf$formula <- mt
-  mf[[1L]] <- quote(stats::model.frame)
-  mf <- eval(mf, parent.frame())
+    names(cl), 0L)
+  cl <- cl[c(1L, m)]
+  cl$drop.unused.levels <- TRUE
+  cl$formula <- mt
+  cl[[1L]] <- quote(stats::model.frame)
+  mf <- eval(cl, parent.frame())
+  cl$formula <- stats::reformulate(all.vars(mt))
+  refordata <- eval(cl, parent.frame())
   # mf <- stats::model.frame(mt, data = data, 
   #   na.action = na.action, weights = weights)
   # Initialize index estimation components
   mod_components <- index.setup(mf, alpha_control)
   # Prepare parameters for smoothing
-  smooth_components <- smooth.setup(mf, smooth_method, smooth_control)
+  smooth_components <- smooth.setup(mf, refordata, 
+    smooth_method, smooth_control)
   # Prepare parameters for fitting algorithm
   algo_control <- do.call(algo.control, algo_control)
   # Fitting the model

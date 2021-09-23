@@ -1,5 +1,5 @@
 
-smooth.setup <- function(mf, method, control)
+smooth.setup <- function(mf, data, method, control)
 {
   method <- match.arg(method, c("scam", "cgam", "scar"))
   fcons <- unlist(sapply(mf, "attr", "fcons"))
@@ -18,7 +18,7 @@ smooth.setup <- function(mf, method, control)
   mt <- attr(mf, "terms")
   gind <- attr(mt, "specials")$g
   smooth_comp$Xcov <- stats::get_all_vars(
-    stats::delete.response(mt[-(gind - 1)]), mf)
+    stats::delete.response(mt[-(gind - 1)]), data)
   # Output
   smooth_comp$method <- method
   return(smooth_comp)

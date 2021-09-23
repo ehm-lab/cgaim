@@ -1,3 +1,8 @@
+## 0.3.05
+
+### Bug fixes
+- Fixed bug related to model frame with covariates
+
 ## 0.3.04
 
 ### Changes
