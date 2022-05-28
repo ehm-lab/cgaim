@@ -1,11 +1,11 @@
 Package: cgaim
 Title: Constrained groupwise additive index models
-Version: 0.3.05
+Version: 0.4.00
 Authors@R: 
     person(given = "Pierre",
            family = "Masselot",
            role = c("aut", "cre"),
-           email = "pierre.masselot@ete.inrs.ca",
+           email = "pierre.masselot@lshtm.ac.uk",
            comment = c(ORCID = "0000-0002-7326-1290"))
 Description: The package cgaim fits groupwise additive index models with
   possibly constraints on the index weights and ridge functions.
@@ -31,6 +31,7 @@ Imports:
     MASS,
     cgam,
     mgcv,
-    gratia
+    gratia,
+    doParallel
 VignetteBuilder: knitr
 Roxygen: list(old_usage = TRUE)

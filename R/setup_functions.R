@@ -78,7 +78,7 @@ g <- function(..., label = term[1], acons = list(), Cmat = NULL, bvec = 0,
   }
   acons <- acons[names(acons) %in% 
       methods::formalArgs(build_constraints)]
-  acons$nvars <- p
+  acons$p <- p
   Cmat <- rbind(Cmat, do.call(build_constraints, acons))
   if (first.pos & NROW(Cmat) == 0) Cmat <- rbind(Cmat, c(1, rep(0, p - 1)))
   # Expand bvec to be consistent with Cmat
@@ -106,48 +106,6 @@ s <- function(x, fcons = NULL, s_opts = list()){
     list(fcons = fcons, s_opts = s_opts, label = deparse(cl$x)))
   return(x)
 }
-
-#' Common constraints
-#'
-#' Build a constraint matrix from common simple constraints.
-#' 
-#' @param nvars A vector giving, for each index, its number of variables.
-#' @param monotone A vector the same length as \code{nvars} giving
-#'    monotonicity constraints. \code{0} means no constraint, \code{-1}
-#'    decreasing coefficients and \code{1} increasing coefficients.
-#' @param sign.const A vector the same length as \code{nvars} giving
-#'    signs constraints. \code{0} means no constraint, \code{-1}
-#'    means that, for the corresponding index, all \eqn{\alpha <= 0} and
-#'    \code{-1} all \eqn{\alpha >= 0}.
-#' @param first.const A vector indicating a sign constraint for first
-#'    coefficient of each index. Recommended for indentifiability purposes but
-#'    overriden by \code{sign.const}.
-#'
-#' @export
-build_constraints <- function(nvars, monotone = 0, sign.const = 0, 
-  first.const = 0)
-{
-  p <- length(nvars)
-  monotone <- rep_len(monotone, p)
-  sign.const <- rep_len(sign.const, p)
-  first.const <- rep_len(first.const, p)
-  index <- rep(1:p, nvars)
-  index1 <- rep(1:p, nvars - 1)
-  Sigma <- matrix(0, length(index) - 1, length(index))
-  diag(Sigma) <- 1
-  Sigma[col(Sigma) - row(Sigma)  == 1] <- -1
-  Sigma <- Sigma[diff(index) == 0,, drop = FALSE]
-  Sigma[monotone[index1] == 1,] <- -1 * Sigma[monotone[index1] == 1,]
-  Sigma <- Sigma[monotone[index1] != 0,, drop = FALSE]
-  csign <- sign.const[index]
-  pfirst <- which(diff(c(0, index)) != 0)
-  first.const[sign.const != 0] <- sign.const[sign.const != 0]
-  csign[pfirst] <- first.const
-  Asign <- diag(csign)
-  Asign <- Asign[apply(Asign, 1, sum) != 0,, drop = F]
-  return(rbind(Sigma, Asign))
-}
-
 
 #' Iterative algorithm control
 #'

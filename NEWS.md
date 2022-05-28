@@ -1,3 +1,15 @@
+## 0.4.00 - 2022-05-28
+
+### New features
+- Confidence intervals through normal approximation.
+- New function dedicated to bootstrap resampling. Result can be used in other functions such as confint.
+
+### Changes
+- Changes in bootstrap confidence intervals. Evaluated at index values.
+- Parralel through the doParallel package, made easier.
+- QR decomposition for alpha updating to stabilize it.
+- Internal change in function organization.
+
 ## 0.3.05
 
 ### Bug fixes

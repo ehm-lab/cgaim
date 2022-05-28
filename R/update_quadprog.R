@@ -1,6 +1,4 @@
-def.quadprog <- function(qp_pars){
-  qp_pars
-}
+
 
 update_quadprog <- function(Dmat, dvec, Cmat, bvec, qp_pars){
   res <- quadprog::solve.QP(Dmat, dvec, t(Cmat), bvec = bvec)

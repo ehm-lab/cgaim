@@ -13,11 +13,14 @@ package_path <- sprintf("C:/Users/PierreMasselot/Documents/Recherche/# R/Package
 # setwd(package_path)
 
 # Load all functions from package
-load_all(package_path)
+load_all()
 
 # Create tests
 use_testthat()
 use_test("basic_models", open = F)
+use_test("build_constraint")
+use_test("bootstrap")
+use_test("confint")
 
 test()
 
@@ -45,9 +48,14 @@ usethis::use_package("MASS")
 usethis::use_package("mgcv")
 usethis::use_package("gratia")
 usethis::use_package("methods")
+usethis::use_package("doParallel")
+usethis::use_package("foreach")
 
 # CMD check
 devtools::check()
+
+# Quick installation
+devtools::install(quick = T)
 
 # Package installation
 remove.packages("cgaim")
