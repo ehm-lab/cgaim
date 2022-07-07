@@ -34,7 +34,7 @@
 #' \code{"pairs"} resamples directly pairs of y and x to create 
 #' bootstrap samples.
 #' 
-#' Bootstrap samples can either be pre-specified by the user through
+#' Bootstrap samples can either be prespecified by the user through
 #' \code{bsamples} or generated internally. In the former case, 
 #' the columns of \code{bsamples} indicate the number of replications \code{B} and
 #' the rows should match the original number of observations. Internally
@@ -70,17 +70,17 @@
 #' df1 <- data.frame(y, x1, x2) 
 #' ans <- cgaim(y ~ g(x1, x2, acons = list(monotone = 1)), data = df1)
 #' 
-#' # Use function to compute confidence intervals 
+#' # Use function to compute confidence intervals (B should be increased)
 #' set.seed(1989) 
-#' boot1 <- boot.cgaim(ans, B = 50)
+#' boot1 <- boot.cgaim(ans, B = 10)
 #' ci1 <- confint(boot1)
 #' 
 #' # Produces the same result as
 #' set.seed(1989)
-#' ci2 <- confint(ans, type = "boot", B = 50)
+#' ci2 <- confint(ans, type = "boot", B = 10)
 #' 
 #' # Create sampling beforehand
-#' bsamp <- matrix(sample(1:n, n * 50, replace = TRUE), n)
+#' bsamp <- matrix(sample(1:n, n * 10, replace = TRUE), n)
 #' boot2 <- boot.cgaim(ans, bsamples = bsamp)
 #' 
 #' # Parallel computing (two cores)

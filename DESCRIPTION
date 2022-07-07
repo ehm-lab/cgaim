@@ -1,20 +1,18 @@
 Package: cgaim
-Title: Constrained groupwise additive index models
-Version: 1.0.00
+Title: Constrained Groupwise Additive Index Models
+Version: 1.0.0
 Authors@R: 
     person(given = "Pierre",
            family = "Masselot",
            role = c("aut", "cre"),
            email = "pierre.masselot@lshtm.ac.uk",
            comment = c(ORCID = "0000-0002-7326-1290"))
-Description: The package cgaim fits constrained groupwise additive index models and provides functions for inference and interpretation of these models.
+Description: Fits constrained groupwise additive index models and provides functions for inference and interpretation of these models.
 License: GPL-3
 Encoding: UTF-8
 LazyData: true
 Suggests: 
-    testthat (>= 2.1.0),
-    knitr,
-    rmarkdown
+    testthat (>= 2.1.0)
 RoxygenNote: 7.2.0
 Imports: 
     graphics,
@@ -35,5 +33,4 @@ Imports:
     coneproj,
     TruncatedNormal,
     foreach
-VignetteBuilder: knitr
 Roxygen: list(old_usage = TRUE)

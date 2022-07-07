@@ -6,9 +6,9 @@
 
 ### Bug fixes
 - Fixed bug with select in `predict.cgaim` and `plot.cgaim`
-- Fixed reporting active constraints from osqp
-- Changed derivative function for gams (previous was deprecated)
-- Bug in the use of foreach in `boot.cgaim`
+- Fixed reporting active constraints from `osqp`
+- Changed derivative function for `gam` (previous was deprecated)
+- Bug in the use of `foreach` in `boot.cgaim`
 - The main function now checks for irreducibility of the constraint matrix.
 - Fixed crash when a wrong argument is given in `acons`.
 
@@ -16,11 +16,11 @@
 
 ### New features
 - Confidence intervals through normal approximation.
-- New function dedicated to bootstrap resampling. Result can be used in other functions such as confint.
+- New function dedicated to bootstrap resampling. Result can be used in other functions such as `confint`.
 
 ### Changes
 - Changes in bootstrap confidence intervals. Evaluated at index values.
-- Parralel through the doParallel package, made easier.
+- Parallel through the `doParallel` package, made easier.
 - QR decomposition for alpha updating to stabilize it.
 - Internal change in function organization.
 
@@ -35,17 +35,17 @@
 - Changed default solver to osqp.
 
 ### Bug fixes
-- Fixed bug in replication of bvec when Cmat is passed through alpha_control.
+- Fixed bug in replication of bvec when `Cmat` is passed through alpha_control.
 
 ## 0.3.03
 
 ### Bug fixes
-- Fixed issue in the finding of active constraints in quadprog for edf (yes, again).
+- Fixed issue in the finding of active constraints in `quadprog` for `edf` (yes, again).
 
 ## 0.3.02
 
 ### Bug fixes
-- Fixed issue in the finding of active constraints in quadprog for edf.
+- Fixed issue in the finding of active constraints in `quadprog` for `edf`.
 
 ## 0.3.01
 
@@ -53,14 +53,14 @@
 - Slight change in convergence handling: now possibility to choose between convergence in RSS or coefficients.
 
 ### Bug fixes
-- Fixed bug cuased by naming variables in `g`.
+- Fixed bug caused by naming variables in `g`.
 
 ## 0.3.00
 
 ### New features
 - Add computation of effective degrees of freedom.
 - Add GCV computation.
-- Add ctol parameter to add a small margin to contraints.
+- Add `ctol` parameter to add a small margin to constraints.
 
 ### Changes
 - Names of algorithm controlling arguments changed with specific help pages added.
@@ -104,7 +104,7 @@
 ### Bug fixes
 - Fixes a bug related to argument `select` in `plot.cgaim`
 - Fixes a bug related to the computation of covariance matrices after estimation
-- Fixes bug occuring for single-index models without covariate
+- Fixes bug occurring for single-index models without covariate
 
 ## 0.1.1
 
@@ -114,4 +114,4 @@
 - smarter attribution of names inside each index
 
 ### Bug fixes
-- fixes the mixing of names in elements 'gfit' and 'beta' from the output
+- fixes the mixing of names in elements `gfit` and `beta` from the output

@@ -29,7 +29,7 @@ cgaim.control(max.iter = 50, tol = 0.001, halving = TRUE,
 
 \item{norm.type}{The type of norm used to normalize index coefficients vectors. See \code{\link[base]{norm}} for available norms. Default to L1 norm meaning that, for each index, absolute values of coefficients sum to 1.}
 
-\item{check.Cmat}{Logical indicating whether to check for redundant constraints and remove them from Cmat.}
+\item{check.Cmat}{Logical indicating whether to check for redundant constraints and remove them from \code{Cmat}.}
 
 \item{solver}{The quadratic programming solver to use. One of \code{"osqp"} (the default), \code{"quadprog"} or \code{"coneproj"}.}
 

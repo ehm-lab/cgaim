@@ -15,7 +15,7 @@
 #' @param na.action A function indicating how to treat NAs. The default is set by the \code{na.action} setting of \code{options}. See \code{\link[stats]{na.fail}}.
 #' @param Cmat A constraint matrix for index coefficients alpha. Columns must match all variables entering any index through \code{\link{g}}. See details.
 #' @param bvec A vector of lower bounds for the constraints in \code{Cmat}. Potentially recycled to match the number of constraints.
-#' @param control A list of paramaters controlling the fitting process. See \code{\link{cgaim.control}}.
+#' @param control A list of parameters controlling the fitting process. See \code{\link{cgaim.control}}.
 #'    
 #' @details The CGAIM is expressed 
 #'  \deqn{y_{i} = \beta_{0} + \sum_{j} \beta_{j} g_{j}(\alpha_{j}^{T} x_{ij})
@@ -42,14 +42,14 @@
 #'  \item{fitted}{A vector of fitted responses.}
 #'  \item{residuals}{A vector of residuals.}
 #'  \item{rss}{The residual sum of squares of the fit.}
-#'  \item{flag}{A flag indicating how the algorithm stopped. 1 for proper convergence, 2 when the algorithm stopped for failing to decrease rss and 3 when the maximum number of iterations has been reached.}
+#'  \item{flag}{A flag indicating how the algorithm stopped. 1 for proper convergence, 2 when the algorithm stopped for failing to decrease the RSS and 3 when the maximum number of iterations has been reached.}
 #'  \item{niter}{Number of iterations performed.}
 #'  \item{edf}{Effective degrees of freedom of the estimator.}
 #'  \item{gcv}{Generalized cross validation score.}
 #'  \item{dg}{A matrix containing derivatives of ridge and smooth functions.}
 #'  \item{gse}{A matrix containing standard errors of ridge and smooth functions.}
 #'  \item{active}{A logical vector indicating which constraints are active at convergence.}
-#'  \item{Cmat}{The constraint matrix used to fit index coefficients alpha. Will include all contraints given through \code{\link{g}} and the \code{Cmat} parameter.}
+#'  \item{Cmat}{The constraint matrix used to fit index coefficients alpha. Will include all constraints given through \code{\link{g}} and the \code{Cmat} parameter.}
 #'  \item{bvec}{The lower bound vector associated with \code{Cmat}.}
 #'  \item{x}{A matrix containing the variables entering the indices. The variables are mapped to each index through the element \code{index}.}
 #'  \item{y}{The response vector.}

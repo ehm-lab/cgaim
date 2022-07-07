@@ -2,5 +2,4 @@
 ^\.Rproj\.user$
 MASTER.R
 TODO.*
-NEWS.md
 cran-comments.md

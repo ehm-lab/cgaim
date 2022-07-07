@@ -6,9 +6,19 @@ Constrained groupwise additive index models
 
 The `cgaim` package provide allows fitting groupwise additive index models with constraints on both the ridge functions and indices coefficients. Methods to plot the ridge functions, predict new data and compute confidence intervals are also included in the package.
 
+The statistical model is detailed in the following publication
+
+-----
+
+Pierre Masselot, Fateh Chebana, Céline Campagna, Éric Lavigne, Taha B M J Ouarda, Pierre Gosselin (2022). **Constrained groupwise additive index models.** *Biostatistics*, 00(00), 1-19. https://doi.org/10.1093/biostatistics/kxac023.
+
+-----
+
 ## Installation
 
-1. In R, install the package directly from github using the command (the package `devtools` is required):
+The package is available for installation from the usual CRAN repository. Alternatively, to install the development version:
+
+1. In R, install the package directly from Github using the command (the package `devtools` is required):
 ```r
 > library(devtools)
 > install_github("PierreMasselot/cgaim")

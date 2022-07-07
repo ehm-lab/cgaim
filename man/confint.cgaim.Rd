@@ -84,13 +84,13 @@ confint(ans, B = 1000, parm = "alpha")
 set.seed(1)
 confint(ans, B = 1000, parm = "beta")
 
-# Confidence intervals by bootstrap (more computationally intensive)
+# Confidence intervals by bootstrap (more computationally intensive, B should be increased)
 set.seed(2)
-ci2 <- confint(ans, type = "boot", B = 50)
+ci2 <- confint(ans, type = "boot", B = 10)
 
 # Alternatively, bootstrap samples can be performed beforehand
 set.seed(2) 
-boot1 <- boot.cgaim(ans, B = 50)
+boot1 <- boot.cgaim(ans, B = 10)
 ci3 <- confint(boot1)
 
 }
@@ -112,5 +112,5 @@ Masselot, P. and others, 2022. Constrained groupwise additive index models.
     Statistics in Medicine 19, 1141–1164.
 }
 \seealso{
-\code{\link{boot.cgaim}} for bootstraping.
+\code{\link{boot.cgaim}} for bootstrapping.
 }
