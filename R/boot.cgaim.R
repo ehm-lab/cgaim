@@ -84,7 +84,9 @@
 #' boot2 <- boot.cgaim(ans, bsamples = bsamp)
 #' 
 #' # Parallel computing (two cores)
+#' \dontrun{
 #' boot3 <- boot.cgaim(ans, nc = 2)
+#' }
 #' 
 #' @export
 boot.cgaim <- function(object, boot.type = c("residuals", "wild", "pairs"), 
