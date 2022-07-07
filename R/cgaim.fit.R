@@ -1,62 +1,76 @@
-#' @export
-cgaim.fit <- function(x, y, w, index, 
-  smooth_control = list(), alpha_control = list(),
-  trace = FALSE, max.iter = 50, tol = 1e-3, min.step.len = 0.1, 
-  halving = T, convergence_criterion = "rss")
+################################################################################
+#
+# A function to build basic constraint matrices from keywords
+#
+################################################################################
+
+cgaim.fit <- function(y, x, index, w, Cmat = NULL, bvec = NULL, 
+  intercept = TRUE, sm_mod, control)
 {
   # Useful objects
   n <- length(y)
   p <- max(index)
   d <- length(index)
   ind_pos <- split(1:d, index)
+  # Initialize alpha
+  if (is.null(control$alpha.start)){
+    if (control$init.type == "random"){
+      pars <- control$sample_pars
+      pars$G <- Cmat
+      pars$H <- bvec
+      res <- suppressWarnings(do.call(limSolve::xsample, pars))$X
+      alpha <- res[nrow(res),]
+    } else if(control$init.type == "regression"){
+      pars <- control[names(control) %in% methods::formalArgs(alpha_update)]
+      pars <- c(pars, list(
+        y = y, x = x, w = w, index = index, Cmat = Cmat, bvec = bvec,
+        dgz <- matrix(1, n, p), alpha = rep(0, d),
+        delta <- FALSE
+      ))
+      alpha <- do.call(alpha_update, pars)$alpha
+    }
+  } else {
+    alpha <- unlist(control$alpha.start)
+    if(length(alpha) != d){
+      warning(paste0("alpha.start length is inconsistent with index matrix ", 
+        "and is recycled"))
+      alpha <- rep_len(alpha, d)
+    }
+  }
+  alpha <- unlist(tapply(alpha, index, normalize, type = control$norm.type))
   # Indice computation
-  alpha <- alpha_control$alpha
   zs <- sapply(ind_pos, function(i, x, a) x[,i] %*% a[i], 
     x = x, a = alpha)
   colnames(zs) <- unique(names(index))
   # Initial smoothing
-  smooth_fun <- sprintf("smooth_%s", smooth_control$method)
-  smooth_control$method <- NULL
-  smo_par <- c(smooth_control, 
-    list(y = y, x = zs, weights = w))
+  smooth_fun <- sprintf("smooth_%s", control$sm_method)
+  smo_par <- c(sm_mod, list(y = y, x = zs, weights = w))
   gz <- do.call(smooth_fun, smo_par)   
   yhat <- gz$intercept + rowSums(gz$gz)
   r <- y - yhat  
   # Convergence criterion
-  eps <- tol + 1
+  eps <- control$tol + 1
   c1 <- 1      
   l2 <- L2(y, yhat, w)  
   # If requested: tracing the algorithm evolution
-  if (trace){
-    trace.list <- list(
-      criterion = rep(NA, max.iter),
-      alpha = matrix(NA, nrow = max.iter, ncol = d),
-      gfit = rep(list(NA), max.iter),
-      step.len = rep(NA, max.iter) 
-    )
-    trace.list$criterion[1] <- eps
-    trace.list$step.len[1] <- 1  
-    trace.list$alpha[1,] <- alpha 
-    trace.list$gfit[[1]] <- gz$gz
+  if (control$trace){
+    paste0("step ", c1, ", crit = ", format(signif(l2, 3)), ", alpha = ",
+      paste(signif(alpha, 3), collapse = ", "))
   }
-  # Gauss-Newton search
-  alpha_pars <- c(
-    alpha_control[names(alpha_control) %in% methods::formalArgs(alpha_update)],
-    list(x = x, w = w, index = index, delta = TRUE))
+  #----- Gauss-Newton search
   stopflag <- 0
   while(stopflag == 0){
     # Update alphas
-    alpha_pars$y <- r
-    alpha_pars$dgz <- gz$dgz
-    alpha_pars$alpha <- alpha
-    alphaup <- do.call(alpha_update, alpha_pars)
+    alphaup <- alpha_update(y = r, x = x, w = w, index = index, Cmat = Cmat,
+      bvec = bvec, delta = TRUE, dgz = gz$dgz, alpha = alpha, 
+      solver = control$solver, qp_pars = control$qp_pars, ctol = control$ctol)
     delta <- alphaup$alpha
     # Halving in case of bad steps
     cuts <- 1
     repeat {   
       alpha.new <- alpha + delta * cuts
       alpha.new <- unlist(tapply(alpha.new, index, normalize, 
-        type = alpha_control$norm.type))
+        type = control$norm.type))
       zs <- sapply(ind_pos, function(i, x, a) x[,i] %*% a[i], 
         x = x, a = alpha.new)
       colnames(zs) <- unique(names(index))   
@@ -64,18 +78,18 @@ cgaim.fit <- function(x, y, w, index,
       gz <- do.call(smooth_fun, smo_par)
       yhat <- gz$intercept + rowSums(gz$gz)
       l2.new <- L2(y, yhat, w)
-      if (l2 - l2.new > 0 || !halving){
+      if (l2 - l2.new > 0 || !control$halving){
         break
       }
       cuts <- cuts / 2
-      if (cuts < min.step.len){ 
+      if (cuts < control$min.step.len){ 
         stopflag <- 2
         break
       }
     }
-    if (convergence_criterion == "offset"){
+    if (control$convergence_criterion == "offset"){
       eps <- offset_convergence(r, x, gz$dgz[,index])
-    } else if (convergence_criterion == "alpha") {
+    } else if (control$convergence_criterion == "alpha") {
       eps <- max(abs(alpha.new - alpha) / abs(alpha))
     } else {
       eps <- (l2 - l2.new) / l2
@@ -84,42 +98,35 @@ cgaim.fit <- function(x, y, w, index,
     alpha <- alpha.new
     l2 <- l2.new
     c1 <- c1 + 1       
-    if (trace){ # Tracing the algorithm evolution
-      trace.list$criterion[c1] <- eps
-      trace.list$step.len[c1] <- cuts 
-      trace.list$alpha[c1,] <- alpha 
-      trace.list$gfit[[c1]] <- gz$gz
+    if (control$trace){ # Tracing the algorithm evolution
+      paste0("step ", c1, ", crit = ", format(signif(l2, 3)), ", alpha = ",
+        paste(signif(alpha, 3), collapse = ", "))
     }
-    if (all(eps < tol)){
+    if (all(eps < control$tol)){
       stopflag <- 1
     } else { 
-      if (c1 >= max.iter){
+      if (c1 >= control$max.iter){
         stopflag <- 3
-        warning(paste0("Fitting did not converge after ", max.iter, 
+        warning(paste0("Fitting did not converge after ", control$max.iter, 
           " iterations. Consider revising the constraints"))
       } 
     }
   }
   names(alpha) <- colnames(x)
-  final.gz <- scale(gz$gz)
+  final.gz <- scale(gz$gz, center = intercept)
   final.gz[,apply(gz$gz, 2, stats::sd) == 0] <- 
     gz$gz[,apply(gz$gz, 2, stats::sd) == 0]
   betas <- attr(final.gz, "scaled:scale")
+  beta0 <- gz$intercept + sum(attr(final.gz, "scaled:center"))
+  names(beta0) <- "(Intercept)"
   r <- y - yhat
   edf <- gz$edf + d - sum(alphaup$active)
   gcv <- l2 / (1 - (edf / n))^2
   sig2 <- sum(r^2) / (n - edf)
   output <- list(alpha = alpha, gfit = final.gz, indexfit = zs, 
-    beta = c(gz$intercept + sum(attr(final.gz, "scaled:center")), betas),
+    beta = c(beta0, betas),
     index = index, fitted = yhat, residuals = r, rss = l2, flag = stopflag, 
     niter = c1, edf = edf, gcv = gcv, dg = gz$dgz, gse = gz$se, 
-    active = alphaup$active)
-  if (trace){
-    trace.list$criterion <- trace.list$criterion[1:c1]
-    trace.list$alpha <- trace.list$alpha[1:c1,]
-    trace.list$gfit <- trace.list$gfit[1:c1]
-    trace.list$step.len <- trace.list$step.len[1:c1]
-    output$trace <- trace.list
-  }
+    active = alphaup$active, Cmat = Cmat, bvec = bvec)
   return(output)   
 }

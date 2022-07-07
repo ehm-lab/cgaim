@@ -3,37 +3,105 @@
 #' Uses a fitted \code{cgaim} object and computes prediction for the
 #'    observed data or new data. Predicts the response, indices or 
 #'    ridge functions values at the provided data.
-#' 
-#' When \code{newdata} is provided, it must contain all variables used in
-#'    the fitted model.
 #'
 #' @param object A \code{gaim} object.
 #' @param newdata A list or data.frame containing the new data to predict.
 #'    If missing, fitted values from the model are returned.
 #' @param type A character indicating the type of prediction to return.
-#'    When \code{type = "response"}, the predicted response is returned. When
-#'    \code{type = "terms"}, returns each ridge and smooth function separately.
-#'    When \code{type = "indices"}, returns predicted indices values.
+#'    \code{type = "response"} returns the predicted response. 
+#'    \code{type = "terms"}, returns ridge and smooth functions evaluated at
+#'    index predicted for \code{newdata}. \code{type = "scterms"} is the same,
+#'    except that terms are postmultiplied by their scaling coefficients beta.
+#'    \code{type = "indices"} returns predicted indices values.
 #' @param select A numeric or character vector indicating terms to return
-#'    when \code{type = "terms"} or \code{type = "indices"}.
-#' @param na.action A function indicating how to treat NA values when 
-#'    when \code{newdata} is not missing.
+#'    for all types except \code{"response"}.
+#' @param na.action A function indicating how to treat NAs. See
+#'    \code{\link[stats]{na.fail}}.
 #' @param ... For compatibility with the default \code{predict} method. Unused
 #'    at the moment.
+#' 
+#' @details \code{type = "terms"} returns the scaled ridge functions, i.e. before being multiplied by scaling coefficients beta. 
 #'
 #' @return When \code{type = "response"} returns a vector of predicted response.
-#'    When \code{type = "terms"} returns a d-column matrix where d is the 
-#'    number of ridge and smooth terms. When \code{type = "indices"}, returns
-#'    a p-column matrix where p is the number of created indices.
-#'
+#'    When \code{type = "terms"} or \code{"scterms"}, returns a matrix of evaluated ridge and 
+#'    smooth terms. When \code{type = "indices"}, returns
+#'    a matrix of evaluated indices.
+#'    
+#' @seealso \code{\link{cgaim}} for main fitting function
+#' 
+#' @examples 
+#' 
+#' ## Simulate some data
+#' n <- 200
+#' x1 <- rnorm(n)
+#' x2 <- rnorm(n)
+#' x3 <- rnorm(n)
+#' x4 <- rnorm(n)
+#' mu <- 4 * exp(8 * x1) / (1 + exp(8 * x1)) + exp(x3)
+#' y <- mu + rnorm(n)
+#' df1 <- data.frame(y, x1, x2, x3, x4)
+#' 
+#' ## Fit an unconstrained the model
+#' ans <- cgaim(y ~ g(x1, x2, label = "foo") + g(x3, x4, label = "bar"), 
+#'   data = df1)
+#' 
+#' ## Get fitted values
+#' yhat <- predict(ans)
+#' 
+#' ## Predict on new data
+#' newdf <- as.data.frame(matrix(rnorm(100), 25, 4))
+#' names(newdf) <- sprintf("x%i", 1:4)
+#' 
+#' # predicted response
+#' ypred <- predict(ans, newdf)
+#' 
+#' # Indices
+#' indices <- predict(ans, newdata = newdf, type = "indices")
+#' 
+#' # Ridge functions
+#' funs <- predict(ans, newdata = newdf, type = "terms")
+#' 
+#' ## Select specific terms
+#' ind1 <- predict(ans, newdata = newdf, select = "foo", type = "indices")
+#' fun1 <- predict(ans, newdata = newdf, select = "foo", type = "terms")
+#' 
+#' # Plot
+#' plot(ans, select = "foo")
+#' points(ind1, fun1)
+#' 
+#' ## Scaled terms
+#' fun2 <- predict(ans, newdata = newdf, select = "foo", type = "scterms")
+#' 
+#' # Plot
+#' plot(ans, select = "foo", yscale = TRUE)
+#' points(ind1, fun2)
+#'  
 #' @export
 predict.cgaim <- function(object, newdata, 
-  type = c("response", "terms", "indices"), select = NULL, 
+  type = c("response", "terms", "scterms", "indices"), select = NULL, 
   na.action = "na.pass", ...)
 {
   type <- match.arg(type)
   n <- length(object$fitted)
   p <- length(object$beta) - 1
+  # Check select
+  if (is.null(select)){
+    select <- seq_len(p)
+  } else {
+    if (is.character(select)){
+      selmatch <- match(select, colnames(object$gfit))
+      nas <- is.na(selmatch)
+      if (any(nas)) warning(paste0("Incorrect select removed: ",
+        paste(select[nas], collapse = ", ")))
+      select <- selmatch[!nas]
+    } else {
+      inc <- select > p
+      if (any(inc)) warning(paste0("Incorrect select removed: ",
+        paste(select[inc], collapse = ", ")))
+      select <- select[!inc]
+    }
+  }
+  # Extract terms
   mt <- stats::terms(object)
   if (!missing(newdata)){
     mt <- stats::delete.response(mt)
@@ -41,15 +109,15 @@ predict.cgaim <- function(object, newdata,
     mfind <- stats::model.frame(mt[gind], data = newdata, 
       na.action = na.action)
     alphas <- object$alpha
-    newindex <- mapply("%*%", mfind, alphas)
+    newindex <- do.call(cbind, Map("%*%", mfind, alphas))
     colnames(newindex) <- names(alphas)
     if (type == "indices"){
-      if (!is.null(select)) newindex <- newindex[,select, drop = F]
+      newindex <- newindex[,select, drop = F]
       return(newindex)
     }
-    Xterms <- c(data.frame(newindex), newdata[names(object$covariates)])
+    Xterms <- c(data.frame(newindex), newdata[names(object$sm_mod$Xcov)])
     sind <- attr(mt, "specials")$s
-    objx <- cbind(object$indexfit, object$covariates)
+    objx <- cbind(object$indexfit, object$sm_mod$Xcov)
     gterms <- matrix(0, nrow(mfind), p)
     for (j in 1:p){
       if (is.numeric(Xterms[[j]])){
@@ -64,17 +132,24 @@ predict.cgaim <- function(object, newdata,
     }
     colnames(gterms) <- colnames(object$gfit)
     if (type == "terms"){
-      if (!is.null(select)) gterms <- gterms[,select, drop = F]
+      gterms <- gterms[,select, drop = F]
       return(gterms)
     }
     betas <- object$beta
+    if(type == "scterms"){
+      scgterms <- gterms * matrix(betas[colnames(gterms)], nrow(gterms),
+        ncol(gterms), byrow = T)
+      return(scgterms[, select, drop = F])
+    }
     yhat <- cbind(1, gterms) %*% betas
     return(yhat)
   } else {
     out <- switch(type,
       response = object$fitted,
-      terms = object$gfit * matrix(object$beta[-1], n, p, byrow = T),
-      indices = object$indexfit
+      terms = object$gfit[, select, drop = F],
+      scterms = (object$gfit * matrix(object$beta[colnames(object$gfit)], n,
+        p, byrow = T))[, select, drop = F],
+      indices = object$indexfit[, select, drop = F]
     )
     return(out)
   }

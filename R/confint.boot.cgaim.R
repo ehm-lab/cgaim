@@ -1,4 +1,6 @@
-#'
+#' @rdname confint.cgaim
+#' @order 2
+#' 
 #' @export
 confint.boot.cgaim <- function(object, parm, level = 0.95, ...)
 {
@@ -14,7 +16,7 @@ confint.boot.cgaim <- function(object, parm, level = 0.95, ...)
     parm <- 1:3
   } else {      
     if (is.character(parm)){
-      parm <- na.omit(match(parm, c("alpha", "beta", "g")))
+      parm <- stats::na.omit(match(parm, c("alpha", "beta", "g")))
     } else {
       parm <- parm[parm %in% 1:3]
     }
@@ -59,7 +61,7 @@ confint.boot.cgaim <- function(object, parm, level = 0.95, ...)
             y = as.data.frame(object$boot$gfit[,i,])))
         res$g[,i,] <- t(apply(gext, 1, stats::quantile, probs = alims))
       } else {
-        zseq <- object$obs$covariates[,i - p]
+        zseq <- object$obs$sm_mod$Xcov[,i - p]
         res$g[,i,] <- t(apply(object$boot$gfit[,i,], 1, stats::quantile, 
           probs = alims))[order(zseq),]
       }

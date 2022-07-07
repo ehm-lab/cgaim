@@ -1,3 +1,9 @@
+################################################################################
+#
+# Function to extract unconstrained vcov of alpha
+#
+################################################################################
+
 vcov_alpha <- function(object){
   # Compute Jacobian
   dgz <- object$dg[,object$index]

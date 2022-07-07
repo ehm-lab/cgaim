@@ -1,3 +1,8 @@
+################################################################################
+#
+#  Setup the parameters for the smoothign part of the algorithm
+#
+################################################################################
 
 smooth.setup <- function(mf, data, method, control)
 {
@@ -20,7 +25,6 @@ smooth.setup <- function(mf, data, method, control)
   smooth_comp$Xcov <- stats::get_all_vars(
     stats::delete.response(mt[-(gind - 1)]), data)
   # Output
-  smooth_comp$method <- method
   return(smooth_comp)
 }
 

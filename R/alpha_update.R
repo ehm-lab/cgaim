@@ -1,4 +1,8 @@
-
+################################################################################
+#
+# Main function updating alphas at the current iteration
+#
+################################################################################
 
 alpha_update <- function(y, x, w, index, dgz, alpha,
   delta = TRUE, Cmat = NULL, bvec = NULL, solver, ctol, qp_pars)

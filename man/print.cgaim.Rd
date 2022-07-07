@@ -13,9 +13,10 @@
 at the moment.}
 }
 \description{
-Default method to print the result from a call to \code{cgaim}.
-}
-\details{
+Default method to print the results from a call to \code{cgaim}. 
 Conveniently prints the formula, \code{beta} and \code{alpha} coefficients
    as well as the residual sum of squares.
+}
+\seealso{
+The main fitting function \code{\link{cgaim}}.
 }

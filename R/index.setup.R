@@ -1,8 +1,6 @@
 # Sets up alpha estimation
-index.setup <- function(mf, alpha_control)
+index.setup <- function(mf, Cmat = NULL, bvec = NULL, control)
 {
-  # Initialize controls
-  alpha_control <- do.call(alpha.control, alpha_control)
   # Extract index variables
   mt <- attr(mf, "terms")
   index_interp <- mf[attr(mt, "specials")$g]
@@ -23,42 +21,37 @@ index.setup <- function(mf, alpha_control)
   # Number of variables and indices
   ptot <- sum(sapply(index_interp, ncol))
   # Check Cmat
-  if (!is.null(alpha_control$Cmat)){
-    if (is.vector(alpha_control$Cmat)) alpha_control$Cmat <- 
-        t(as.matrix(alpha_control$Cmat))
-    if (ncol(alpha_control$Cmat) != ptot){
-      stop("Number of columns in alpha_control$Cmat does not match
-        the indices")
+  if (!is.null(Cmat)){
+    if (is.vector(Cmat)) Cmat <- t(as.matrix(Cmat))
+    if (ncol(Cmat) != ptot){
+      stop("Inconsistent number of columns in Cmat")
     }
-  }
-  # Add Cmat provided in index specific specifications
-  alpha_control$Cmat <- rbind(alpha_control$Cmat, 
-    as.matrix(Matrix::bdiag(lapply(index_interp, attr, "Cmat"))))
-  # Add bvec
-  alpha_control$bvec <- c(alpha_control$bvec, 
-    unlist(lapply(index_interp, attr, "bvec"), use.names = F))
-  # Check if there are any duplicates
-  dups <- duplicated(alpha_control$Cmat)
-  alpha_control$Cmat <- alpha_control$Cmat[!dups,,drop = F]
-  alpha_control$bvec <- alpha_control$bvec[!dups]
-  # Check number of constraints
-  dims <- dim(alpha_control$Cmat)
-  if (dims[1] > dims[2]) warning("More constraints than parameters. Check
-    possible redundant constraints.")
-  # Initialize alpha
-  if (is.null(alpha_control$alpha.start)){
-    init_pars <- alpha_control
-    init_pars <- c(init_pars, list(y = y, x = Xind, w = w, index = index))
-    alpha_control$alpha <- do.call(alpha_init, init_pars)
   } else {
-    alpha_control$alpha <- unlist(alpha_control$alpha.start)
-    if(length(alpha_control$alpha) != ptot){
-      warning(paste0("alpha.start length is inconsistent with index matrix ", 
-        "and is recycled"))
-      alpha_control$alpha <- rep_len(alpha_control$alpha, ptot)
-    }
+    Cmat <- matrix(nrow = 0, ncol = ptot)
   }
-  alpha_control$alpha.start <- alpha_control$init.type <- NULL
-  return(list(y = y, x = Xind, index = index, w = w,
-    alpha_control = alpha_control)) 
+  if (is.null(bvec)) bvec <- 0
+  bvec <- rep_len(bvec, nrow(Cmat))
+  # Add Cmat provided in index specific specifications
+  gCmat <- as.matrix(Matrix::bdiag(lapply(index_interp, attr, "Cmat")))
+  Cmat <- rbind(Cmat, gCmat)
+  # Add bvec
+  bvec <- c(bvec, unlist(lapply(index_interp, attr, "bvec"), use.names = F))
+  # Check irreducibility
+  if (nrow(Cmat) > 1){
+    chkc <- check_cmat(Cmat)
+    if (length(chkc) > 0 && control$check.Cmat){
+      Cmat <- Cmat[-chkc,]
+      bvec <- bvec[-chkc]
+      warning(paste0("Redundant constraints were removed: ", 
+        paste(chkc, collapse = ", ")))
+    }
+    
+  } else if (nrow(Cmat) == 0) { # Check identifiability
+  warning(paste0("The constraint matrix is empty ", 
+    "and the model might not be identifiable. ", 
+    "It is recommended to leave at least a sign constraint for one ",
+    "coefficient per index."))
+  }
+  # Return
+  return(list(y = y, x = Xind, index = index, w = w, Cmat = Cmat, bvec = bvec)) 
 }

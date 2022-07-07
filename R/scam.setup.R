@@ -25,6 +25,7 @@ scam.setup <- function(mf, control)
   term_lin <- attr(mt, "term.labels")[-(c(gind, sind) - 1)]
   # Put together
   rhsform <- paste(c(term_s, term_lin), collapse = " + ")
-  control$formula <- stats::reformulate(c(term_s, term_lin), all.vars(mt)[1])
+  control$formula <- stats::reformulate(c(term_s, term_lin), all.vars(mt)[1],
+    attr(mt, "intercept"))
   return(control)
 }

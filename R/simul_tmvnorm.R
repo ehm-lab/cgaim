@@ -1,13 +1,20 @@
+################################################################################
+#
+# Simulate from a truncated multivariate for transformed coefficients
+#
+################################################################################
+
 simul_tmvnorm <- function(object, B = 100)
 {
   #----- Checks
   # Constraint matrix
-  bvec <- object$alpha_control$bvec
-  Cmat <- object$alpha_control$Cmat
+  bvec <- object$bvec
+  Cmat <- object$Cmat
   dims <- dim(Cmat)
   if (dims[1] > dims[2]) {
-    stop("More constraints than parameters. 
-      Impossible to simulate from truncated normal.")
+    stop(paste0("More constraints than parameters, ",
+      "impossible to simulate from truncated normal. ",
+      "Consider bootstrap inference instead."))
   } else if (dims[1] < dims[2]){
     # Augment constraint matrix to be squared
     Hmat <- nullspace(t(Cmat))

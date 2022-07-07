@@ -1,3 +1,8 @@
+################################################################################
+#
+# Wrapper for scam shape constrained smoothing
+#
+################################################################################
 
 smooth_scam <- function(x, y, formula, Xcov, ...)
 { 
@@ -12,7 +17,7 @@ smooth_scam <- function(x, y, formula, Xcov, ...)
     # print("scam"); flush.console()
   } else {
     gfit <- mgcv::gam(formula, data = scam_data, ...)
-    derivs <- gratia::fderiv(gfit, newdata = scam_data)
+    derivs <- as.data.frame(gratia::derivatives(gfit, newdata = scam_data))
     # print("gam"); flush.console()
   }
   # Extract estimated terms
@@ -38,7 +43,8 @@ smooth_scam <- function(x, y, formula, Xcov, ...)
       if (iscons){
         dgx[,j] <- scam::derivative.scam(gfit, jind)$d
       } else {
-        dgx[,j] <- derivs$derivatives[[which(smterms == jind)]]$deriv
+        dgx[,j] <- derivs[derivs$smooth == gfit$smooth[[jind]]$label, 
+          "derivative"]
       }
     } else {
       if (is.numeric(scam_data[j])){
@@ -46,7 +52,7 @@ smooth_scam <- function(x, y, formula, Xcov, ...)
       }
     }
   }
-  beta0 <- stats::coef(gfit)[1]
+  beta0 <- if(attr(stats::terms(formula), "intercept")) stats::coef(gfit)[1] else 0
   return(list(intercept = beta0, gz = gx, dgz = dgx, edf = sum(gfit$edf),
     se = ses))
 }

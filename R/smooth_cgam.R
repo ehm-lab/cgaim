@@ -1,3 +1,10 @@
+################################################################################
+#
+# Wrapper for cgam shape constrained smoothing
+#
+################################################################################
+
+#' @import cgam
 smooth_cgam <- function(x, y, formula, Xcov, ...){
   cgam_data <- data.frame(as.data.frame(x), Xcov)  
   p <- ncol(cgam_data)

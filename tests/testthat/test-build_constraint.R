@@ -31,8 +31,8 @@ redres2 <- quadprog::solve.QP(Dmat, dvec, t(reduced2))
 
 #----- Test
 test_that("Solution is feasible", {
-  expect_true(all((1 + full %*% redres$solution) >= 1))
-  expect_true(all((1 + full2 %*% redres2$solution) >= 1))
+  expect_true(all((full %*% redres$solution) >= -.Machine$double.eps))
+  expect_true(all((full2 %*% redres2$solution) >= -.Machine$double.eps))
 })
 
 test_that("Result is identicial with full and reduced matrices", {

@@ -1,10 +1,7 @@
-#' Plot CGAIM terms
+#' Plot ridge function
 #'
 #' Plot method for the ridge and smooth terms of a \code{cgaim} object. If
-#'    provided, may also plot confidence intervals.
-#'
-#' At the moment, only plots ridge and smooth functions. When several terms
-#'    are plotted, waits for user response before displaying the next one.
+#'    provided, also plots confidence intervals.
 #'
 #' @param x A \code{cgaim} object.
 #' @param select A numeric or character vector indicating which terms
@@ -16,10 +13,80 @@
 #' @param ci.args Additional arguments to be passed to the function used
 #'    to draw confidence interval. Either \code{\link[graphics]{polygon}} or
 #'    \code{\link[graphics]{lines}}.
+#' @param add Logical. If TRUE, adds the function to the current active plot.
+#' @param xcenter,xscale Centering and scaling values for the x axis. See
+#'    \code{\link[base]{scale}}.
+#' @param yshift,yscale Either logical or numeric values to shift and scale 
+#'    the ridge functions. See details.
 #' @param ... Additional graphical parameters for the drawn function. See
 #'    \code{\link[graphics]{par}}.
-#'    yshift and yscale can take intercept and beta if set to NULL
 #'
+#' @details The values of \code{yshift} and \code{yscale} determine how
+#' ridge functions are shifted and scaled for plotting. This can be used to
+#' display the functions over data points for instance. If numeric, a vector
+#' can be passed with one value for each plotted function. The vector is 
+#' recycled if necessary. This indicate the desired mean and standard deviation 
+#' of plotted ridge functions. Note that this is inverse to the parameters
+#' in \code{\link[base]{scale}} (and \code{xcenter,xscale}).
+#' If TRUE is passed instead, functions are shifted
+#' to the intercept and scaled to their corresponding beta coefficients, placing
+#' them on the response scale.
+#' 
+#' @seealso \code{\link{cgaim}} for the main fitting function and 
+#'   \code{\link{confint.cgaim}} for confidence interval computation.
+#'
+#' @examples 
+#' ## Simulate some data
+#' n <- 200
+#' x1 <- rnorm(n)
+#' x2 <- rnorm(n)
+#' x3 <- rnorm(n)
+#' x4 <- rnorm(n)
+#' mu <- 4 * exp(8 * x1) / (1 + exp(8 * x1)) + exp(x3)
+#' y <- 5 + mu + rnorm(n)
+#' df1 <- data.frame(y, x1, x2, x3, x4)
+#' 
+#' ## Fit a model
+#' ans <- cgaim(y ~ g(x1, x2, label = "foo") + g(x3, x4, label = "bar"), 
+#'   data = df1)
+#' 
+#' ## Default plot method
+#' plot(ans)
+#' 
+#' ## Select variable
+#' plot(ans, select = 1)
+#' 
+#' # Same as
+#' plot(ans, select = "foo")
+#' 
+#' ## Add confidence intervals
+#' ci <- confint(ans)
+#' plot(ans, select = 1, ci = ci)
+#' 
+#' ## Change scale and location
+#' # On the response scale
+#' plot(ans, select = 1, ci = ci, yshift = TRUE, yscale = TRUE)
+#' 
+#' # Arbitrary scale
+#' plot(ans, select = 1, ci = ci, yshift = 1000)
+#' 
+#' ## Change look
+#' 
+#' # Main line
+#' plot(ans, select = 1, ci = ci, col = 2, lwd = 3)
+#' 
+#' # Confidence intervals
+#' plot(ans, select = 1, ci = ci, col = 2, lwd = 3,
+#'   ci.args = list(col = adjustcolor(2, .5)))
+#' 
+#' # Confidence interval type
+#' plot(ans, select = 1, ci = ci, ci.plot = "lines", col = 2, lwd = 3,
+#'   ci.args = list(col = 2, lty = 4))
+#' 
+#' ## Put curves on the same plot (need to shift and scale)
+#' plot(ans, select = 1, col = 2, ylim = c(-2, 3))
+#' plot(ans, select = 2, col = 4, add = TRUE)
+#' 
 #' @export
 plot.cgaim <- function(x, select = NULL, ci = NULL,
   ci.plot = c("polygon", "lines"), ci.args = list(), add = FALSE,
@@ -61,8 +128,8 @@ plot.cgaim <- function(x, select = NULL, ci = NULL,
   if(isFALSE(yscale)) yscale <- 1
   yscale <- rep_len(yscale, nsel)
   # Initialize x
-  xs <- cbind(x$indexfit, x$covariates)
-  xs <- scale(xs[, select], center = xcenter, scale = xscale)
+  xs <- cbind(x$indexfit, x$sm_mod$Xcov)
+  xs <- scale(xs[, select, drop = F], center = xcenter, scale = xscale)
   # Initialize y
   n <- nrow(x$gfit)
   ys <- x$gfit[, select, drop = F] * 
@@ -87,7 +154,7 @@ plot.cgaim <- function(x, select = NULL, ci = NULL,
     if (ci.plot == "lines"){
       defArgs <- list(lty = 2)
     }
-    ci.args <- modifyList(ci.args, defArgs)
+    ci.args <- utils::modifyList(defArgs, ci.args)
   }
   # Loop to plot
   for (j in seq_len(nsel)){
@@ -95,7 +162,7 @@ plot.cgaim <- function(x, select = NULL, ci = NULL,
     jord <- order(xy[,1])
     xy <- xy[jord,]
     defParams$xlab <- colnames(xs)[j]
-    jpars <- modifyList(dots, defParams)
+    jpars <- utils::modifyList(dots, defParams)
     jpars$x <- xy[,1]
     jpars$y <- xy[,2]
     if (!is.null(ci)){

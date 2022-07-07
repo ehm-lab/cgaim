@@ -1,3 +1,17 @@
+## 1.0.0
+
+### Changes
+- Expanded documentation
+- Merged all control parameters into a single one. Added function `control.cgaim`
+
+### Bug fixes
+- Fixed bug with select in `predict.cgaim` and `plot.cgaim`
+- Fixed reporting active constraints from osqp
+- Changed derivative function for gams (previous was deprecated)
+- Bug in the use of foreach in `boot.cgaim`
+- The main function now checks for irreducibility of the constraint matrix.
+- Fixed crash when a wrong argument is given in `acons`.
+
 ## 0.4.00 - 2022-05-28
 
 ### New features
