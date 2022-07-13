@@ -7,6 +7,8 @@
 #' @param x A \code{cgaim} object.
 #' @param ... For compatibility with the default \code{print} method. Unused
 #'    at the moment.
+#'    
+#' @returns Function called for its side effect of printing a \code{cgaim} object. Returns no value.
 #' 
 #' @seealso The main fitting function \code{\link{cgaim}}.
 #' 

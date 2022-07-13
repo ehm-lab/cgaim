@@ -92,7 +92,7 @@ bsamp <- matrix(sample(1:n, n * 10, replace = TRUE), n)
 boot2 <- boot.cgaim(ans, bsamples = bsamp)
 
 # Parallel computing (two cores)
-\dontrun{
+\donttest{
 boot3 <- boot.cgaim(ans, nc = 2)
 }
 

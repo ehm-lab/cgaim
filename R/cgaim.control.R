@@ -35,7 +35,9 @@
 #' 
 #' In some cases, minimal numerical imprecision in the repeated call to quadratic program, along with the normalization of alpha coefficients, can lead to unfeasible alphas at convergence. To avoid this, these imprecision are compensated by adding a small tolerance \code{ctol} to the constraints, defaulting to 0.001. If no tolerance is wanted, it can be set to 0.
 #' 
-#' By default, the package automatically checks that Cmat is irreducible, i.e. that no constraint is redundant. A constraint is redundant if it can be expressed as a non-negative linear combination of other constraints. If \code{check.Cmat = TRUE}, such constraints are removed with a warning.
+#' By default, the package automatically checks that \code{Cmat} is irreducible, i.e. that no constraint is redundant. A constraint is redundant if it can be expressed as a non-negative linear combination of other constraints. If \code{check.Cmat = TRUE}, such constraints are removed with a warning.
+#' 
+#' @returns A named list containing all arguments to be used in \code{\link{cgaim}}.
 #' 
 #' @seealso These parameters control the fitting of \code{\link{cgaim}}.
 #' 
@@ -51,7 +53,7 @@ cgaim.control <- function(
   max.iter = 50, tol = 1e-3, halving = TRUE, min.step.len = 0.1, 
   convergence_criterion = "rss", trace = FALSE,
   # For alpha estimation
-  alpha.start = NULL, init.type = "regression", norm.type = "1", check.Cmat = T, 
+  alpha.start = NULL, init.type = "regression", norm.type = "1", check.Cmat = TRUE, 
   solver = "osqp", ctol = 1e-3, qp_pars = list(), sample_pars = list(),
   # For smoothing
   sm_method = "scam", sm_pars = list())

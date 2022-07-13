@@ -5,7 +5,7 @@ index.setup <- function(mf, Cmat = NULL, bvec = NULL, control)
   mt <- attr(mf, "terms")
   index_interp <- mf[attr(mt, "specials")$g]
   # Labels for smoothing step
-  index_labels <- make.names(sapply(index_interp, attr, "label"), unique = T)
+  index_labels <- make.names(sapply(index_interp, attr, "label"), unique = TRUE)
   # Extract response
   y <- stats::model.response(mf)
   attr(y, "varname") <- all.vars(mt)[1]
@@ -35,7 +35,7 @@ index.setup <- function(mf, Cmat = NULL, bvec = NULL, control)
   gCmat <- as.matrix(Matrix::bdiag(lapply(index_interp, attr, "Cmat")))
   Cmat <- rbind(Cmat, gCmat)
   # Add bvec
-  bvec <- c(bvec, unlist(lapply(index_interp, attr, "bvec"), use.names = F))
+  bvec <- c(bvec, unlist(lapply(index_interp, attr, "bvec"), use.names = FALSE))
   # Check irreducibility
   if (nrow(Cmat) > 1){
     chkc <- check_cmat(Cmat)

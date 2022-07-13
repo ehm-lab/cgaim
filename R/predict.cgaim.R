@@ -112,7 +112,7 @@ predict.cgaim <- function(object, newdata,
     newindex <- do.call(cbind, Map("%*%", mfind, alphas))
     colnames(newindex) <- names(alphas)
     if (type == "indices"){
-      newindex <- newindex[,select, drop = F]
+      newindex <- newindex[,select, drop = FALSE]
       return(newindex)
     }
     Xterms <- c(data.frame(newindex), newdata[names(object$sm_mod$Xcov)])
@@ -132,24 +132,24 @@ predict.cgaim <- function(object, newdata,
     }
     colnames(gterms) <- colnames(object$gfit)
     if (type == "terms"){
-      gterms <- gterms[,select, drop = F]
+      gterms <- gterms[,select, drop = FALSE]
       return(gterms)
     }
     betas <- object$beta
     if(type == "scterms"){
       scgterms <- gterms * matrix(betas[colnames(gterms)], nrow(gterms),
-        ncol(gterms), byrow = T)
-      return(scgterms[, select, drop = F])
+        ncol(gterms), byrow = TRUE)
+      return(scgterms[, select, drop = FALSE])
     }
     yhat <- cbind(1, gterms) %*% betas
     return(yhat)
   } else {
     out <- switch(type,
       response = object$fitted,
-      terms = object$gfit[, select, drop = F],
+      terms = object$gfit[, select, drop = FALSE],
       scterms = (object$gfit * matrix(object$beta[colnames(object$gfit)], n,
-        p, byrow = T))[, select, drop = F],
-      indices = object$indexfit[, select, drop = F]
+        p, byrow = TRUE))[, select, drop = FALSE],
+      indices = object$indexfit[, select, drop = FALSE]
     )
     return(out)
   }

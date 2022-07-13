@@ -12,6 +12,9 @@
 \item{...}{For compatibility with the default \code{print} method. Unused
 at the moment.}
 }
+\value{
+Function called for its side effect of printing a \code{cgaim} object. Returns no value.
+}
 \description{
 Default method to print the results from a call to \code{cgaim}. 
 Conveniently prints the formula, \code{beta} and \code{alpha} coefficients

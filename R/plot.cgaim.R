@@ -32,6 +32,8 @@
 #' to the intercept and scaled to their corresponding beta coefficients, placing
 #' them on the response scale.
 #' 
+#' @returns The function is called to generate plots and returns no value.
+#' 
 #' @seealso \code{\link{cgaim}} for the main fitting function and 
 #'   \code{\link{confint.cgaim}} for confidence interval computation.
 #'
@@ -112,7 +114,7 @@ plot.cgaim <- function(x, select = NULL, ci = NULL,
   nsel <- length(select)
   if (nsel > 1) {
     if (add) {
-      warning("'add = T' should be used with 'select' to add a single smooth")
+      warning("'add = TRUE' should be used with 'select' to add a single smooth")
     } else {
       grDevices::devAskNewPage(TRUE) 
     }
@@ -129,25 +131,25 @@ plot.cgaim <- function(x, select = NULL, ci = NULL,
   yscale <- rep_len(yscale, nsel)
   # Initialize x
   xs <- cbind(x$indexfit, x$sm_mod$Xcov)
-  xs <- scale(xs[, select, drop = F], center = xcenter, scale = xscale)
+  xs <- scale(xs[, select, drop = FALSE], center = xcenter, scale = xscale)
   # Initialize y
   n <- nrow(x$gfit)
-  ys <- x$gfit[, select, drop = F] * 
-    matrix(yscale, nrow = n, ncol = nsel, byrow = T) + 
-    matrix(yshift, nrow = n, ncol = nsel, byrow = T)
+  ys <- x$gfit[, select, drop = FALSE] * 
+    matrix(yscale, nrow = n, ncol = nsel, byrow = TRUE) + 
+    matrix(yshift, nrow = n, ncol = nsel, byrow = TRUE)
   # Initialize parameters
   defParams <- list(ylab = "g", type = "l")
   dots <- list(...)
   # Initialize cis
   if (!is.null(ci)){
     ci.plot <- match.arg(ci.plot)
-    allcis <- ci$g[,select,,drop = F]
+    allcis <- ci$g[,select,,drop = FALSE]
     allcis[,,1] <- allcis[,,1] * 
-      matrix(yscale, nrow = n, ncol = nsel, byrow = T) + 
-      matrix(yshift, nrow = n, ncol = nsel, byrow = T)
+      matrix(yscale, nrow = n, ncol = nsel, byrow = TRUE) + 
+      matrix(yshift, nrow = n, ncol = nsel, byrow = TRUE)
     allcis[,,2] <- allcis[,,2] * 
-      matrix(yscale, nrow = n, ncol = nsel, byrow = T) + 
-      matrix(yshift, nrow = n, ncol = nsel, byrow = T)
+      matrix(yscale, nrow = n, ncol = nsel, byrow = TRUE) + 
+      matrix(yshift, nrow = n, ncol = nsel, byrow = TRUE)
     if (ci.plot == "polygon"){
       defArgs <- list(border = NA, col = "grey")      
     }

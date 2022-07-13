@@ -7,7 +7,7 @@
 cgaim.control(max.iter = 50, tol = 0.001, halving = TRUE,
   min.step.len = 0.1, convergence_criterion = "rss", trace = FALSE,
   alpha.start = NULL, init.type = "regression", norm.type = "1",
-  check.Cmat = T, solver = "osqp", ctol = 0.001, qp_pars = list(),
+  check.Cmat = TRUE, solver = "osqp", ctol = 0.001, qp_pars = list(),
   sample_pars = list(), sm_method = "scam", sm_pars = list())
 }
 \arguments{
@@ -43,6 +43,9 @@ cgaim.control(max.iter = 50, tol = 0.001, halving = TRUE,
 
 \item{sm_pars}{Named list to pass specific parameters to the smoothing function of \code{sm_method}. See help pages of corresponding functions.}
 }
+\value{
+A named list containing all arguments to be used in \code{\link{cgaim}}.
+}
 \description{
 Internal function setting the parameters to control the CGAIM fit. Sets default values and check parameters passed by the user. It is called internally by \code{\link{cgaim}} and should not be called directly by the user.
 }
@@ -57,7 +60,7 @@ At the moment, three solvers are available to perform quadratic programming, whi
 
 In some cases, minimal numerical imprecision in the repeated call to quadratic program, along with the normalization of alpha coefficients, can lead to unfeasible alphas at convergence. To avoid this, these imprecision are compensated by adding a small tolerance \code{ctol} to the constraints, defaulting to 0.001. If no tolerance is wanted, it can be set to 0.
 
-By default, the package automatically checks that Cmat is irreducible, i.e. that no constraint is redundant. A constraint is redundant if it can be expressed as a non-negative linear combination of other constraints. If \code{check.Cmat = TRUE}, such constraints are removed with a warning.
+By default, the package automatically checks that \code{Cmat} is irreducible, i.e. that no constraint is redundant. A constraint is redundant if it can be expressed as a non-negative linear combination of other constraints. If \code{check.Cmat = TRUE}, such constraints are removed with a warning.
 }
 \references{
 Bates, D.M., Watts, D.G., 1981. A Relative Off set Orthogonality Convergence Criterion for Nonlinear least Squares. Technometrics 23, 179–183.

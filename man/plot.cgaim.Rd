@@ -35,6 +35,9 @@ the ridge functions. See details.}
 \item{...}{Additional graphical parameters for the drawn function. See
 \code{\link[graphics]{par}}.}
 }
+\value{
+The function is called to generate plots and returns no value.
+}
 \description{
 Plot method for the ridge and smooth terms of a \code{cgaim} object. If
    provided, also plots confidence intervals.

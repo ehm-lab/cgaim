@@ -32,10 +32,10 @@
 ## 0.3.04
 
 ### Changes
-- Changed default solver to osqp.
+- Changed default solver to `osqp`.
 
 ### Bug fixes
-- Fixed bug in replication of bvec when `Cmat` is passed through alpha_control.
+- Fixed bug in replication of `bvec` when `Cmat` is passed through alpha_control.
 
 ## 0.3.03
 
