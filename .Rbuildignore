@@ -4,3 +4,4 @@ MASTER.R
 TODO.*
 cran-comments.md
 ^CRAN-SUBMISSION$
+revdep
