@@ -34,3 +34,4 @@ Imports:
     TruncatedNormal,
     foreach
 Roxygen: list(old_usage = TRUE)
+URL: https://github.com/PierreMasselot/cgaim
