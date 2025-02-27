@@ -1,9 +1,7 @@
-# cgaim
+# Constrained Groupwise Additive Index Models
 
 [![](https://www.r-pkg.org/badges/version/cgaim?color=green)](https://cran.r-project.org/package=cgaim)
 [![](http://cranlogs.r-pkg.org/badges/grand-total/cgaim?color=green)](https://cran.r-project.org/package=cgaim)
-
-Constrained Groupwise Additive Index Models
 
 ## Description
 
