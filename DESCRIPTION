@@ -1,6 +1,6 @@
 Package: cgaim
 Title: Constrained Groupwise Additive Index Models
-Version: 1.0.1
+Version: 1.0.2
 Authors@R: 
     person(given = "Pierre",
            family = "Masselot",
@@ -13,7 +13,7 @@ Encoding: UTF-8
 LazyData: true
 Suggests: 
     testthat (>= 2.1.0)
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.2
 Imports: 
     graphics,
     stats,

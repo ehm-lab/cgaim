@@ -1,3 +1,7 @@
+# 1.0.2
+
+- Resubmission of the package which was archived because of some dependencies
+
 # 1.0.1
 
 ## New features

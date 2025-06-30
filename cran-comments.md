@@ -1,9 +1,9 @@
-# 1.0.1
+# 1.0.2
 
-Package update after check errors from 27/04/2024. Fixes error induced by the update of the `gratia` dependency.
+Submission of the package after the package has been archived (on 02/06/2025) due to issues with the `limSolve` dependency. No change has been made as `limSolve` is back online.
 
 ## R CMD check results
 0 errors | 0 warnings | 0 notes
 
 ## Downstream dependencies
-Only bug fix and addition of new convenience functions, no change in the specification nor output of the existing function.
+No change in the package usage, only fixing typos in the documentation.
